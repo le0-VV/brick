@@ -21,6 +21,11 @@
 - `command`, `routine`, and `skill` memory types should have lightweight structured fields rather than keeping all type-specific detail only in the Markdown body.
 - `command` memories should support structured fields such as `command`, `cwd`, `when_to_use`, `expected_output`, and `failure_notes`.
 - `routine` and `skill` memories should support structured fields such as `steps`, `prerequisites`, and `verify`.
+- Every memory should require a `source.kind`.
+- Every memory should require at least one `evidence` item.
+- For conversation-derived memories, quoted user text should be used as evidence when possible.
+- For work-derived memories, evidence should point to files, commits, tests, or similar concrete work artifacts when possible.
+- Memories without enough evidence should be rejected instead of saved.
 - Duplicate handling should merge exact identical copies and reevaluate semantically similar memories before merging.
 - Conflicting memories should go to human review.
 - Retrieval should be hybrid rather than semantic-only.
