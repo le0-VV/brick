@@ -28,6 +28,11 @@
 - It is acceptable to assume people doing agentic coding have Python available.
 - Brick scripts and instructions should include dependency handling so agents can set up or repair the local tooling when needed.
 - Agents are expected to understand and operate Brick through the repo-provided scripts and instructions.
+- Brick should prefer `uv` for Python dependency setup and use `pip` as the fallback.
+- Brick's Python dependency declaration should stay contained under `.agents/brick/pyproject.toml`.
+- Brick should use its own virtual environment rather than the host project's main virtual environment.
+- Brick commands should run setup or otherwise resolve dependencies instead of leaving the user or agent to manually install missing packages.
+- Brick should provide a single setup entrypoint for dependency and local tooling setup.
 - The semantic index should not be committed to Git; it should be rebuilt locally.
 - Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
 - Memory files should live under `.agents/memory/`.
