@@ -15,6 +15,9 @@
 - Human review should happen mainly through the normal PR process. During local work, agents should confirm what memory will be recorded and clarify/verify with the user when needed.
 - One memory atom is one Markdown file containing one piece of a topic.
 - The memory taxonomy should adapt the earlier proposed categories and include decisions, preferences, facts/context, incidents, patterns, tasks, people, projects, policies, skills, routines, and commands.
+- V1 memory metadata should use one required machine-facing `type` plus multiple flexible `tags`.
+- Brick should not have a separate `topics` field in v1; topic-like labeling should use `tags`.
+- The `type` field should drive schema validation, rendering, and agent behavior, while `tags` should support discovery and semantic/human labeling.
 - Duplicate handling should merge exact identical copies and reevaluate semantically similar memories before merging.
 - Conflicting memories should go to human review.
 - Retrieval should be hybrid rather than semantic-only.
