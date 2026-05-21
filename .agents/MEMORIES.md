@@ -25,6 +25,9 @@
 - Collaboration should use normal Git workflows: branches, forks, PRs, and merges.
 - A custom Markdown/memory merge driver is likely central to the system.
 - V1 should include Markdown schema, scripts, agent instructions, local semantic index generation, and the custom merge driver.
+- It is acceptable to assume people doing agentic coding have Python available.
+- Brick scripts and instructions should include dependency handling so agents can set up or repair the local tooling when needed.
+- Agents are expected to understand and operate Brick through the repo-provided scripts and instructions.
 - The semantic index should not be committed to Git; it should be rebuilt locally.
 - Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
 - Memory files should live under `.agents/memory/`.
