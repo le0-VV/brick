@@ -24,6 +24,17 @@
 - Memory belongs inside each project repo; every repo has its own memory.
 - Collaboration should use normal Git workflows: branches, forks, PRs, and merges.
 - A custom Markdown/memory merge driver is likely central to the system.
+- V1 should include Markdown schema, scripts, agent instructions, local semantic index generation, and the custom merge driver.
+- The semantic index should not be committed to Git; it should be rebuilt locally.
+- Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
+- Memory files should live under `.agents/memory/`.
+- Stale memories should be marked `status: superseded`, linked to their replacement, and kept with lower retrieval priority.
+- Memory deletion should support normal Git deletion, tombstones, and redaction depending on the removal reason.
+- V1 ingest sources should start with explicit user/agent memory submissions; agent session summaries can follow soon after, while PR/issues/commit mining should come later.
+- Agents should submit memory by calling a script with JSON/text input and letting the script write the memory file.
+- Retrieved context packages should include summary, source path, confidence, status, evidence, and a full-text link.
+- The working product name is Brick.
+- The README may quote the user's naming note: "Im calling it brick because fuck naming."
 - The project should not rely on product telemetry.
 - Debugging should prefer verbose logs.
 
