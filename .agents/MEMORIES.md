@@ -37,10 +37,13 @@
 - Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
 - Memory files should live under `.agents/memory/`.
 - Stale memories should be marked `status: superseded`, linked to their replacement, and kept with lower retrieval priority.
+- Retrieval should ignore superseded memories by default while allowing explicit retrieval when requested.
+- Low-confidence durable memory should not be a normal state. Unclear or low-confidence candidate memories should be clarified, rejected, or kept out of the durable memory set instead of being indexed as trusted memory.
 - Memory deletion should support normal Git deletion, tombstones, and redaction depending on the removal reason.
 - V1 ingest sources should start with explicit user/agent memory submissions; agent session summaries can follow soon after, while PR/issues/commit mining should come later.
 - Agents should submit memory by calling a script with JSON/text input and letting the script write the memory file.
 - Retrieved context packages should include summary, source path, confidence, status, evidence, and a full-text link.
+- Upstream memory updates should flow to forks through normal Git commits; when a fork pulls, merges, or rebases from upstream, it receives the new memory files the same way it receives code changes.
 - The working product name is Brick.
 - The README may quote the user's naming note: "Im calling it brick because fuck naming."
 - The project should not rely on product telemetry.
