@@ -26,6 +26,10 @@
 - For conversation-derived memories, quoted user text should be used as evidence when possible.
 - For work-derived memories, evidence should point to files, commits, tests, or similar concrete work artifacts when possible.
 - Memories without enough evidence should be rejected instead of saved.
+- Brick should block obvious secrets before saving memory, including API keys, private keys, tokens, and passwords.
+- Brick should warn on possible PII before saving memory, including names, emails, phone numbers, and addresses.
+- Brick should not allow sensitive information in memory by default; committed memory should be safe for the repository's intended audience.
+- If sensitive information slips into memory, redaction should create a new commit replacing sensitive text with `[REDACTED]` plus a tombstone or evidence note explaining why.
 - Duplicate handling should merge exact identical copies and reevaluate semantically similar memories before merging.
 - Conflicting memories should go to human review.
 - Retrieval should be hybrid rather than semantic-only.
