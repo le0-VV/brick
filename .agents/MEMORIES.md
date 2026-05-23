@@ -36,6 +36,8 @@
 - Brick's merge driver should automatically merge only exact duplicate memory IDs or exact duplicate content.
 - When branches add semantically similar memories, Brick should create a structured conflict/review item rather than silently rewriting or merging the memories.
 - Agents may propose a merged version for semantically similar memories, but human acceptance should be required before Brick writes the final merged memory.
+- Brick merge conflict reports should be local gitignored artifacts by default, stored under a path such as `.agents/brick/conflicts/`.
+- Brick should provide an option to export or share conflict reports when a user wants to include them in PR discussion or review.
 - Retrieval should be hybrid rather than semantic-only.
 - Reranking is probably not a v1 requirement because it likely requires an additional model and may be too heavy.
 - The user is working on a separate system-wide local micro LLM/embedding server, but the memory project should also be able to use API-backed LLMs/embeddings.
