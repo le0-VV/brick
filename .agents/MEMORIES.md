@@ -30,6 +30,7 @@
 - Brick should block possible PII until explicitly confirmed before saving memory, including names, emails, phone numbers, and addresses.
 - Brick should not allow sensitive information in memory by default; committed memory should be safe for the repository's intended audience.
 - If sensitive information slips into memory, redaction should create a new commit replacing sensitive text with `[REDACTED]` plus a tombstone or evidence note explaining why.
+- When Brick blocks a memory candidate, the script should return a machine-readable structured response with fields such as `status`, `reason`, redacted `matches`, and available `actions` like `redact`, `confirm_public`, and `reject`.
 - Duplicate handling should merge exact identical copies and reevaluate semantically similar memories before merging.
 - Conflicting memories should go to human review.
 - Retrieval should be hybrid rather than semantic-only.
