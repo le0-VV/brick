@@ -72,6 +72,8 @@
 - Memory deletion should support normal Git deletion, tombstones, and redaction depending on the removal reason.
 - V1 ingest sources should start with explicit user/agent memory submissions; agent session summaries can follow soon after, while PR/issues/commit mining should come later.
 - Agents should submit memory by calling a script with JSON/text input and letting the script write the memory file.
+- Brick should keep memory operations under the `brick memory` namespace, such as `brick memory add`, `brick memory validate`, and `brick memory search`.
+- `brick memory add` should accept JSON input by default and reject non-JSON input instead of requiring a `--json` flag.
 - Retrieved context packages should include summary, source path, confidence, status, evidence, and a full-text link.
 - Upstream memory updates should flow to forks through normal Git commits; when a fork pulls, merges, or rebases from upstream, it receives the new memory files the same way it receives code changes.
 - The working product name is Brick.
