@@ -63,7 +63,7 @@
 - V1 should use simple local files and/or SQLite for generated index state rather than requiring Chroma, Qdrant, or another external vector database.
 - Brick should define `BRICK_EMBEDDING_URL` as the standard environment variable for a configured embedding endpoint.
 - If no embedding endpoint or API is configured, Brick should fall back to keyword search and clearly report that semantic search is unavailable.
-- `brick index rebuild` should be the canonical command to regenerate the local index from canonical Markdown memory files.
+- `brick rebuild` should be the canonical command to regenerate the local index from canonical Markdown memory files.
 - Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
 - Memory files should live under `.agents/memory/`.
 - Stale memories should be marked `status: superseded`, linked to their replacement, and kept with lower retrieval priority.
