@@ -33,6 +33,9 @@
 - When Brick blocks a memory candidate, the script should return a machine-readable structured response with fields such as `status`, `reason`, redacted `matches`, and available `actions` like `redact`, `confirm_public`, and `reject`.
 - Duplicate handling should merge exact identical copies and reevaluate semantically similar memories before merging.
 - Conflicting memories should go to human review.
+- Brick's merge driver should automatically merge only exact duplicate memory IDs or exact duplicate content.
+- When branches add semantically similar memories, Brick should create a structured conflict/review item rather than silently rewriting or merging the memories.
+- Agents may propose a merged version for semantically similar memories, but human acceptance should be required before Brick writes the final merged memory.
 - Retrieval should be hybrid rather than semantic-only.
 - Reranking is probably not a v1 requirement because it likely requires an additional model and may be too heavy.
 - The user is working on a separate system-wide local micro LLM/embedding server, but the memory project should also be able to use API-backed LLMs/embeddings.
