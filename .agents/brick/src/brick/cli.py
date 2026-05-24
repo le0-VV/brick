@@ -18,6 +18,7 @@ from brick.conflicts import (
     BrickConflictError,
     export_conflict_report,
     list_conflict_reports,
+    propose_conflict_resolution,
     run_merge_driver,
 )
 from brick.index import BrickIndexError, rebuild_index, search_index
@@ -705,6 +706,39 @@ def cmd_conflicts_export(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_conflicts_propose(args: argparse.Namespace) -> int:
+    raw_input = sys.stdin.read()
+    try:
+        proposal = json.loads(raw_input)
+    except json.JSONDecodeError as exc:
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_json",
+                "message": str(exc),
+            },
+            args.pretty,
+        )
+        return 1
+    if not isinstance(proposal, dict):
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_proposal",
+                "message": "conflict proposal must be a JSON object",
+            },
+            args.pretty,
+        )
+        return 1
+
+    try:
+        payload = propose_conflict_resolution(find_repo_root(), args.id, proposal)
+    except (BrickError, BrickConflictError) as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+    emit_json(payload, args.pretty)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="brick")
     parser.add_argument("--version", action="store_true", help="show Brick version")
@@ -776,6 +810,14 @@ def build_parser() -> argparse.ArgumentParser:
     conflicts_export.add_argument("id")
     conflicts_export.add_argument("--pretty", action="store_true", help="pretty-print JSON")
     conflicts_export.set_defaults(func=cmd_conflicts_export)
+
+    conflicts_propose = conflicts_subparsers.add_parser(
+        "propose",
+        help="attach a proposed resolution",
+    )
+    conflicts_propose.add_argument("id")
+    conflicts_propose.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    conflicts_propose.set_defaults(func=cmd_conflicts_propose)
 
     return parser
 

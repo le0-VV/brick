@@ -10,17 +10,20 @@ from typing import Any
 from brick.memory import (
     MemoryDocument,
     MemoryParseError,
+    parse_frontmatter,
     compute_content_hash,
     format_timestamp,
     generate_ulid,
     load_memory,
     render_memory_text,
+    split_frontmatter,
     validate_memory,
 )
 
 
 CONFLICT_SCHEMA_VERSION = 1
 CONFLICTS_RELATIVE_PATH = Path(".agents/brick/conflicts")
+PROPOSAL_ALLOWED_FIELDS = {"summary", "memory_markdown", "notes"}
 SEMANTIC_SIMILARITY_THRESHOLD = 0.5
 SEMANTIC_SIMILARITY_MIN_TOKENS = 6
 SEMANTIC_FRONTMATTER_EXCLUDED_FIELDS = {
@@ -140,6 +143,42 @@ def export_conflict_report(repo_root: Path, report_id: str) -> dict[str, Any]:
         "status": "ok",
         "path": relative_to_repo(repo_root, path),
         "report": read_json_file(path),
+    }
+
+
+def propose_conflict_resolution(
+    repo_root: Path,
+    report_id: str,
+    proposal: dict[str, Any],
+) -> dict[str, Any]:
+    validate_proposal_payload(proposal)
+    path = conflict_path_for_id(repo_root, report_id)
+    if not path.exists():
+        raise BrickConflictError(f"conflict report not found: {report_id}")
+    report = read_json_file(path)
+    validation = validate_proposed_memory_markdown(proposal["memory_markdown"])
+    if validation.status != "ok":
+        issue_codes = ", ".join(issue.code for issue in validation.issues)
+        raise BrickConflictError(
+            f"proposed memory markdown did not validate: {issue_codes}"
+        )
+
+    proposed_resolution: dict[str, Any] = {
+        "kind": "memory_markdown",
+        "created_at": format_timestamp(datetime.now(UTC)),
+        "summary": proposal["summary"],
+        "memory_markdown": proposal["memory_markdown"],
+        "validation": validation.to_dict(),
+    }
+    if "notes" in proposal:
+        proposed_resolution["notes"] = proposal["notes"]
+    report["proposed_resolution"] = proposed_resolution
+    write_conflict_report(repo_root, report)
+    return {
+        "status": "ok",
+        "path": relative_to_repo(repo_root, path),
+        "report_id": report.get("id"),
+        "proposed_resolution": proposed_resolution,
     }
 
 
@@ -469,6 +508,36 @@ def read_json_file(path: Path) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise BrickConflictError(f"conflict report must be a JSON object: {path}")
     return payload
+
+
+def validate_proposal_payload(proposal: dict[str, Any]) -> None:
+    unknown_fields = sorted(set(proposal) - PROPOSAL_ALLOWED_FIELDS)
+    if unknown_fields:
+        raise BrickConflictError(
+            f"proposal contains unknown fields: {', '.join(unknown_fields)}"
+        )
+    for field_name in ("summary", "memory_markdown"):
+        value = proposal.get(field_name)
+        if not isinstance(value, str) or not value.strip():
+            raise BrickConflictError(
+                f"proposal field {field_name} must be a non-empty string"
+            )
+    if "notes" in proposal and not isinstance(proposal["notes"], str):
+        raise BrickConflictError("proposal field notes must be a string")
+
+
+def validate_proposed_memory_markdown(markdown: str):
+    try:
+        frontmatter_text, body = split_frontmatter(markdown)
+        document = MemoryDocument(
+            path=Path("<proposed_resolution>"),
+            frontmatter=parse_frontmatter(frontmatter_text),
+            body=body,
+            raw_text=markdown,
+        )
+    except MemoryParseError as exc:
+        raise BrickConflictError(f"proposed memory markdown could not be parsed: {exc}") from exc
+    return validate_memory(document)
 
 
 def same_memory_content(ours: Path, theirs: Path) -> bool:

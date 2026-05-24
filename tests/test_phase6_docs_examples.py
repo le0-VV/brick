@@ -53,6 +53,7 @@ class Phase6DocsExamplesTests(unittest.TestCase):
             "./brick memory search",
             "./brick rebuild",
             "./brick conflicts list",
+            "./brick conflicts propose",
         ):
             self.assertIn(command, readme + usage)
         self.assertIn("Im calling it brick because fuck naming.", readme)

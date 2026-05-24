@@ -67,6 +67,7 @@ index by default.
 ./brick memory search "release process" --limit 5 --pretty
 ./brick conflicts list --pretty
 ./brick conflicts export <conflict-id> --pretty
+./brick conflicts propose <conflict-id> --pretty < proposal.json
 ```
 
 ## Merge Conflicts
@@ -82,6 +83,16 @@ resolution:
 
 Human review is required before writing a final merged memory when Brick reports
 `required_action: human_review`.
+
+Agents may attach a proposed merged memory to a conflict report:
+
+```sh
+./brick conflicts propose <conflict-id> --pretty < proposal.json
+```
+
+The proposal JSON must include `summary` and `memory_markdown`, with optional
+`notes`. This updates only the local conflict report's `proposed_resolution`;
+the final canonical memory must still be accepted by a human.
 
 ## Examples
 

@@ -65,10 +65,15 @@ def write_merge_files(repo: Path, base: str, ours: str, theirs: str) -> tuple[Pa
     return base_path, ours_path, theirs_path
 
 
-def run_cli(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+def run_cli(
+    repo: Path,
+    *args: str,
+    input_text: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(ROOT / ".agents/brick/bin/brick"), *args],
         cwd=repo,
+        input=input_text,
         check=False,
         text=True,
         stdout=subprocess.PIPE,
@@ -107,6 +112,61 @@ class Phase5MergeConflictTests(unittest.TestCase):
         self.assertEqual(exported.returncode, 0, exported.stderr)
         self.assertEqual(exported_payload["status"], "ok")
         self.assertEqual(exported_payload["report"]["id"], report["id"])
+
+    def test_conflicts_propose_updates_report_without_writing_memory(self) -> None:
+        repo = make_repo(self)
+        report = {
+            "schema_version": 1,
+            "id": "conflict-01JX3Y1Y8H6TR4Y3Q38K1W9P2A",
+            "created_at": "2026-05-24T00:00:00Z",
+            "kind": "semantic_similarity",
+            "severity": "review_required",
+            "merge": {"base_ref": "base", "ours_ref": "ours", "theirs_ref": "theirs"},
+            "memories": [],
+            "similarity": {"method": "keyword", "score": 0.9},
+            "conflicts": [{"field": "body", "reason": "semantically_similar_memory"}],
+            "appendable_unions": {"evidence": []},
+            "proposed_resolution": None,
+            "required_action": "human_review",
+        }
+        conflicts.write_conflict_report(repo, report)
+        proposal = {
+            "summary": "Merge both retrieval decisions into one memory.",
+            "memory_markdown": memory_text(
+                title="Merged retrieval decision",
+                body="Use one merged retrieval decision after human review.",
+            ),
+            "notes": "Human should review before copying this into canonical memory.",
+        }
+
+        proposed = run_cli(
+            repo,
+            "conflicts",
+            "propose",
+            report["id"],
+            input_text=json.dumps(proposal),
+        )
+
+        proposed_payload = json.loads(proposed.stdout)
+        self.assertEqual(proposed.returncode, 0, proposed.stdout + proposed.stderr)
+        self.assertEqual(proposed_payload["status"], "ok")
+        self.assertEqual(proposed_payload["report_id"], report["id"])
+        self.assertEqual(
+            proposed_payload["proposed_resolution"]["summary"],
+            proposal["summary"],
+        )
+        self.assertEqual(
+            proposed_payload["proposed_resolution"]["validation"]["status"],
+            "ok",
+        )
+        self.assertFalse((repo / ".agents/memory").exists())
+
+        exported = run_cli(repo, "conflicts", "export", report["id"])
+        exported_report = json.loads(exported.stdout)["report"]
+        self.assertEqual(
+            exported_report["proposed_resolution"]["memory_markdown"],
+            proposal["memory_markdown"],
+        )
 
     def test_merge_driver_uses_theirs_when_ours_is_unchanged_from_base(self) -> None:
         repo = make_repo(self)

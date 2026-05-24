@@ -29,6 +29,7 @@ After setup:
 ./brick memory redact < redaction.json
 ./brick rebuild
 ./brick conflicts list --pretty
+./brick conflicts propose <conflict-id> < proposal.json
 ```
 
 Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under
@@ -53,6 +54,8 @@ files.
   search when `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL` are configured.
 - `./brick merge-driver` only auto-resolves exact or fast-forward-safe cases;
   otherwise it writes review reports under `.agents/brick/conflicts/`.
+- Agents can attach proposed conflict resolutions through `./brick conflicts
+  propose`; this updates only the local report and still requires human review.
 
 ## Embeddings
 

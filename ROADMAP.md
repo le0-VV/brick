@@ -430,7 +430,7 @@ Core merge behavior:
 - [x] Auto-merge exact duplicate content.
 - [x] Do not silently merge semantically similar memories.
 - [x] Create structured conflict/review items for semantic similarity.
-- [ ] Allow agents to propose merged memories.
+- [x] Allow agents to propose merged memories.
 - [x] Require human acceptance before Brick writes a final merged memory.
 - [x] Merge deterministic frontmatter fields automatically when non-conflicting.
 - [x] Use normal Git-style text merge behavior for Markdown body edits.
