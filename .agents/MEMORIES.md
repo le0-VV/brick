@@ -101,3 +101,4 @@
 - The user may be inconsistent while defining the product and does not expect to understand every surrounding technical choice up front.
 - When answers are unclear, ask more granular questions or work through them slowly instead of forcing a premature full specification.
 - Capture firm answers in `.agents/MEMORIES.md`; after the clarification process is finished, produce a detailed design plan and roadmap.
+- `ROADMAP.md` should be checklist-oriented so agents can follow long-horizon work more easily.
