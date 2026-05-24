@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import sqlite3
@@ -302,6 +303,27 @@ class Phase4IndexSearchTests(unittest.TestCase):
         self.assertEqual(embedding_calls[0][0].api_key, "test-key")
         self.assertEqual(len(embedding_calls[0][1]), 2)
         self.assertEqual(embedding_calls[1][1], ["semantic-only"])
+
+    def test_embedding_remote_disconnect_returns_embedding_error(self) -> None:
+        config = index.EmbeddingConfig(
+            endpoint_url="http://embedding.example/v1/embeddings",
+            model="fake-embedding-model",
+        )
+
+        with (
+            mock.patch.object(
+                index.urllib.request,
+                "urlopen",
+                side_effect=http.client.RemoteDisconnected(
+                    "Remote end closed connection without response"
+                ),
+            ),
+            self.assertRaises(index.EmbeddingError) as raised,
+        ):
+            index.request_embeddings(config, ["hello"])
+
+        self.assertEqual(raised.exception.reason, "embedding_request_failed")
+        self.assertIn("Remote end closed connection", str(raised.exception))
 
 
 if __name__ == "__main__":

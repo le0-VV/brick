@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import http.client
 import json
 import math
 import os
@@ -716,6 +717,11 @@ def request_embeddings(config: EmbeddingConfig, inputs: list[str]) -> list[list[
         raise EmbeddingError(
             "embedding_request_failed",
             f"embedding endpoint returned HTTP {exc.code}: {detail}",
+        ) from exc
+    except http.client.RemoteDisconnected as exc:
+        raise EmbeddingError(
+            "embedding_request_failed",
+            f"embedding endpoint request failed: {exc}",
         ) from exc
     except urllib.error.URLError as exc:
         raise EmbeddingError(
