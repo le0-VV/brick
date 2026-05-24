@@ -21,7 +21,12 @@ from brick.conflicts import (
     propose_conflict_resolution,
     run_merge_driver,
 )
-from brick.index import BrickIndexError, rebuild_index, search_index
+from brick.index import (
+    BrickIndexError,
+    LOCAL_CONFIG_RELATIVE_PATH,
+    rebuild_index,
+    search_index,
+)
 from brick.memory import (
     MemoryAddError,
     MemoryParseError,
@@ -37,10 +42,20 @@ GITIGNORE_ENTRIES = (
     ".agents/brick/.venv/",
     ".agents/brick/index/",
     ".agents/brick/conflicts/",
+    ".agents/brick/config.local.json",
 )
 GITATTRIBUTES_ENTRY = ".agents/memory/**/*.md merge=brick-memory"
 BRICK_VENV_RELATIVE_PATH = Path(".agents/brick/.venv")
 BRICK_PYPROJECT_RELATIVE_PATH = Path(".agents/brick/pyproject.toml")
+LOCAL_CONFIG_TEMPLATE = (
+    '{\n'
+    '  "embedding": {\n'
+    '    "url": "",\n'
+    '    "model": "",\n'
+    '    "api_key_env": "BRICK_EMBEDDING_API_KEY"\n'
+    '  }\n'
+    '}\n'
+)
 MEMORY_TYPES = (
     "decision",
     "command",
@@ -153,6 +168,15 @@ def ensure_list_file(path: Path, entries: Iterable[str], result: SetupResult) ->
     result.actions.append(f"updated {path.relative_to(result.repo_root)}")
 
 
+def ensure_local_config(repo_root: Path, result: SetupResult) -> None:
+    config_path = repo_root / LOCAL_CONFIG_RELATIVE_PATH
+    if config_path.exists():
+        return
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(LOCAL_CONFIG_TEMPLATE, encoding="utf-8")
+    result.actions.append(f"created {config_path.relative_to(result.repo_root)}")
+
+
 def brick_agents_text(has_backup: bool) -> str:
     first_task = (
         f"- First task: ask the user to review and merge `{AGENTS_BACKUP_NAME}` "
@@ -169,11 +193,12 @@ def brick_agents_text(has_backup: bool) -> str:
         "example memory payloads.\n"
         "- Run `./brick setup` if Brick tooling, generated directories, or Git "
         "configuration appear incomplete.\n"
-        "- Before relying on Brick retrieval, check whether the per-machine "
-        "embedding API environment is configured with `BRICK_EMBEDDING_URL` "
-        "and `BRICK_EMBEDDING_MODEL`. If it is missing, report that Brick "
-        "search is keyword-only until semantic retrieval is configured and "
-        "`./brick rebuild` is run.\n"
+        "- Before relying on Brick retrieval, check whether "
+        "`.agents/brick/config.local.json` has `embedding.url` and "
+        "`embedding.model`, or whether `BRICK_EMBEDDING_URL` and "
+        "`BRICK_EMBEDDING_MODEL` are set. If both sources are missing, report "
+        "that Brick search is keyword-only until semantic retrieval is "
+        "configured and `./brick rebuild` is run.\n"
         "- Search memory before relying on assumptions: `./brick memory search "
         "\"<query>\"`.\n"
         "- Add or update memory only through Brick commands; do not hand-edit "
@@ -395,6 +420,7 @@ def setup_repo(
     ensure_executable(brick_root / "bin/brick", result)
     ensure_root_symlink(repo_root, result)
     ensure_list_file(repo_root / ".gitignore", GITIGNORE_ENTRIES, result)
+    ensure_local_config(repo_root, result)
     ensure_list_file(repo_root / ".gitattributes", (GITATTRIBUTES_ENTRY,), result)
 
     if configure_git:

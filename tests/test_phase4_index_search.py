@@ -207,6 +207,10 @@ class Phase4IndexSearchTests(unittest.TestCase):
             payload["retrieval"]["semantic"]["reason"],
             "BRICK_EMBEDDING_URL_not_configured",
         )
+        self.assertEqual(
+            payload["retrieval"]["semantic"]["config_path"],
+            ".agents/brick/config.local.json",
+        )
         self.assertEqual(payload["results"][0]["id"], "01JX3Y1Y8H6TR4Y3Q38K1W9P2A")
         first = payload["results"][0]
         self.assertEqual(first["confidence"], "high")
@@ -303,6 +307,127 @@ class Phase4IndexSearchTests(unittest.TestCase):
         self.assertEqual(embedding_calls[0][0].api_key, "test-key")
         self.assertEqual(len(embedding_calls[0][1]), 2)
         self.assertEqual(embedding_calls[1][1], ["semantic-only"])
+
+    def test_rebuild_and_search_use_device_local_embedding_config(self) -> None:
+        repo = make_repo(self)
+        write_memory(
+            repo,
+            memory_id="01JX3Y1Y8H6TR4Y3Q38K1W9P2A",
+            title="Alpha local vector memory",
+            tags=["vectors"],
+            body="Alpha content is retrievable through local semantic search.",
+        )
+        write_memory(
+            repo,
+            memory_id="01JX3Y2D8S6Q7M4K2B9P0V1W3T",
+            title="Bravo local vector memory",
+            tags=["vectors"],
+            body="Bravo content points in a different embedding direction.",
+        )
+        config_path = repo / index.LOCAL_CONFIG_RELATIVE_PATH
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "embedding": {
+                        "url": "http://local-embedding.example/v1",
+                        "model": "local-embedding-model",
+                        "api_key_env": "LOCAL_EMBEDDING_TOKEN",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        embedding_calls: list[tuple[index.EmbeddingConfig, list[str]]] = []
+
+        def fake_request_embeddings(
+            config: index.EmbeddingConfig,
+            inputs: list[str],
+        ) -> list[list[float]]:
+            embedding_calls.append((config, inputs))
+            return [fake_embedding_vector(text) for text in inputs]
+
+        with mock.patch.object(index, "request_embeddings", side_effect=fake_request_embeddings):
+            rebuild_result = index.rebuild_index(repo, env={"LOCAL_EMBEDDING_TOKEN": "local-key"})
+            rebuild_payload = rebuild_result.to_dict(repo)
+            search_payload = index.search_index(
+                repo,
+                "semantic-only",
+                env={"LOCAL_EMBEDDING_TOKEN": "local-key"},
+            )
+
+        self.assertEqual(rebuild_payload["index"]["embedding_model"], "local-embedding-model")
+        self.assertEqual(search_payload["retrieval"]["semantic"]["model"], "local-embedding-model")
+        self.assertEqual(
+            search_payload["retrieval"]["semantic"]["config_path"],
+            ".agents/brick/config.local.json",
+        )
+        self.assertEqual(
+            embedding_calls[0][0].endpoint_url,
+            "http://local-embedding.example/v1/embeddings",
+        )
+        self.assertEqual(embedding_calls[0][0].model, "local-embedding-model")
+        self.assertEqual(embedding_calls[0][0].api_key, "local-key")
+        self.assertEqual(embedding_calls[1][1], ["semantic-only"])
+
+    def test_embedding_env_overrides_device_local_config(self) -> None:
+        repo = make_repo(self)
+        config_path = repo / index.LOCAL_CONFIG_RELATIVE_PATH
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "embedding": {
+                        "url": "http://local-embedding.example/v1",
+                        "model": "local-embedding-model",
+                        "api_key_env": "LOCAL_EMBEDDING_TOKEN",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        config = index.configured_embedding(
+            repo,
+            {
+                "BRICK_EMBEDDING_URL": "http://env-embedding.example/v1",
+                "BRICK_EMBEDDING_MODEL": "env-embedding-model",
+                "BRICK_EMBEDDING_API_KEY": "env-key",
+                "LOCAL_EMBEDDING_TOKEN": "local-key",
+            },
+        )
+
+        self.assertIsNotNone(config)
+        assert config is not None
+        self.assertEqual(config.endpoint_url, "http://env-embedding.example/v1/embeddings")
+        self.assertEqual(config.model, "env-embedding-model")
+        self.assertEqual(config.api_key, "env-key")
+
+    def test_local_embedding_config_rejects_literal_api_key(self) -> None:
+        repo = make_repo(self)
+        config_path = repo / index.LOCAL_CONFIG_RELATIVE_PATH
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "embedding": {
+                        "url": "http://local-embedding.example/v1",
+                        "model": "local-embedding-model",
+                        "api_key": "do-not-store-this",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with self.assertRaises(index.BrickIndexError) as raised:
+            index.configured_embedding(repo, env={})
+
+        payload = raised.exception.to_dict()
+        self.assertEqual(payload["status"], "invalid")
+        self.assertEqual(payload["reason"], "invalid_local_config")
+        self.assertEqual(payload["path"], ".agents/brick/config.local.json")
+        self.assertIn("api_key_env", payload["message"])
 
     def test_embedding_remote_disconnect_returns_embedding_error(self) -> None:
         config = index.EmbeddingConfig(

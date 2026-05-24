@@ -26,6 +26,7 @@ from brick.memory import (
 
 INDEX_SCHEMA_VERSION = 2
 INDEX_RELATIVE_PATH = Path(".agents/brick/index/brick.sqlite3")
+LOCAL_CONFIG_RELATIVE_PATH = Path(".agents/brick/config.local.json")
 SEMANTIC_ENV_VAR = "BRICK_EMBEDDING_URL"
 EMBEDDING_MODEL_ENV_VAR = "BRICK_EMBEDDING_MODEL"
 EMBEDDING_API_KEY_ENV_VAR = "BRICK_EMBEDDING_API_KEY"
@@ -68,6 +69,21 @@ class EmbeddingConfig:
     endpoint_url: str
     model: str
     api_key: str | None = None
+
+
+@dataclass(frozen=True)
+class LocalEmbeddingConfig:
+    url: str = ""
+    model: str = ""
+    api_key_env: str = EMBEDDING_API_KEY_ENV_VAR
+
+
+@dataclass(frozen=True)
+class EmbeddingSettings:
+    raw_url: str
+    model: str
+    api_key_env: str
+    api_key: str | None
 
 
 @dataclass
@@ -129,7 +145,7 @@ def rebuild_index(
 
     documents = [load_memory(path) for path in paths]
     memory_rows = [memory_row(repo_root, document) for document in documents]
-    embedding_config = configured_embedding(env)
+    embedding_config = configured_embedding(repo_root, env)
     embedding_vectors: list[list[float]] = []
     embedding_dimensions: int | None = None
     if embedding_config is not None and memory_rows:
@@ -410,12 +426,17 @@ def search_index(
     finally:
         connection.close()
 
-    embedding_config = configured_embedding(env)
+    embedding_config = configured_embedding(repo_root, env)
     query_vector: list[float] | None = None
-    semantic = unavailable_semantic_status(env)
+    semantic = unavailable_semantic_status(repo_root, env)
     indexed_embedding_count = sum(1 for row in rows if row["embedding_vector_json"] is not None)
     if embedding_config is not None:
-        semantic = semantic_status_for_index(metadata, embedding_config, indexed_embedding_count)
+        semantic = semantic_status_for_index(
+            repo_root,
+            metadata,
+            embedding_config,
+            indexed_embedding_count,
+        )
         if semantic["available"]:
             try:
                 query_vector = request_embeddings(embedding_config, [query])[0]
@@ -427,6 +448,7 @@ def search_index(
                         "available": False,
                         "reason": "embedding_dimension_mismatch",
                         "env": SEMANTIC_ENV_VAR,
+                        "config_path": local_config_relative_path(repo_root),
                         "model": embedding_config.model,
                         "indexed_dimensions": indexed_dimensions,
                         "query_dimensions": query_dimensions,
@@ -439,6 +461,7 @@ def search_index(
                     "available": False,
                     "reason": exc.reason,
                     "env": SEMANTIC_ENV_VAR,
+                    "config_path": local_config_relative_path(repo_root),
                     "model": embedding_config.model,
                     "message": str(exc),
                 }
@@ -613,28 +636,33 @@ def result_from_row(
     return result
 
 
-def unavailable_semantic_status(env: Mapping[str, str]) -> dict[str, Any]:
-    if not env.get(SEMANTIC_ENV_VAR, "").strip():
+def unavailable_semantic_status(repo_root: Path, env: Mapping[str, str]) -> dict[str, Any]:
+    settings = embedding_settings(repo_root, env)
+    if not settings.raw_url:
         return {
             "available": False,
             "reason": f"{SEMANTIC_ENV_VAR}_not_configured",
             "env": SEMANTIC_ENV_VAR,
+            "config_path": local_config_relative_path(repo_root),
         }
-    if not env.get(EMBEDDING_MODEL_ENV_VAR, "").strip():
+    if not settings.model:
         return {
             "available": False,
             "reason": f"{EMBEDDING_MODEL_ENV_VAR}_not_configured",
             "env": EMBEDDING_MODEL_ENV_VAR,
+            "config_path": local_config_relative_path(repo_root),
         }
     return {
         "available": False,
         "reason": "index_has_no_embeddings",
         "env": SEMANTIC_ENV_VAR,
+        "config_path": local_config_relative_path(repo_root),
         "action": "run brick rebuild",
     }
 
 
 def semantic_status_for_index(
+    repo_root: Path,
     metadata: dict[str, Any],
     config: EmbeddingConfig,
     indexed_embedding_count: int,
@@ -644,6 +672,7 @@ def semantic_status_for_index(
             "available": False,
             "reason": "index_has_no_embeddings",
             "env": SEMANTIC_ENV_VAR,
+            "config_path": local_config_relative_path(repo_root),
             "model": config.model,
             "action": "run brick rebuild",
         }
@@ -653,6 +682,7 @@ def semantic_status_for_index(
             "available": False,
             "reason": "embedding_model_mismatch",
             "env": EMBEDDING_MODEL_ENV_VAR,
+            "config_path": local_config_relative_path(repo_root),
             "configured_model": config.model,
             "indexed_model": indexed_model,
             "action": "run brick rebuild",
@@ -660,23 +690,110 @@ def semantic_status_for_index(
     return {
         "available": True,
         "env": SEMANTIC_ENV_VAR,
+        "config_path": local_config_relative_path(repo_root),
         "model": config.model,
         "indexed_count": indexed_embedding_count,
         "dimensions": metadata.get("embedding_dimensions"),
     }
 
 
-def configured_embedding(env: Mapping[str, str]) -> EmbeddingConfig | None:
-    raw_url = env.get(SEMANTIC_ENV_VAR, "").strip()
-    model = env.get(EMBEDDING_MODEL_ENV_VAR, "").strip()
-    if not raw_url or not model:
+def configured_embedding(repo_root: Path, env: Mapping[str, str]) -> EmbeddingConfig | None:
+    settings = embedding_settings(repo_root, env)
+    if not settings.raw_url or not settings.model:
         return None
-    api_key = env.get(EMBEDDING_API_KEY_ENV_VAR, "").strip() or None
     return EmbeddingConfig(
-        endpoint_url=embedding_endpoint_url(raw_url),
-        model=model,
-        api_key=api_key,
+        endpoint_url=embedding_endpoint_url(settings.raw_url),
+        model=settings.model,
+        api_key=settings.api_key,
     )
+
+
+def embedding_settings(repo_root: Path, env: Mapping[str, str]) -> EmbeddingSettings:
+    local = load_local_embedding_config(repo_root)
+    api_key_env = local.api_key_env or EMBEDDING_API_KEY_ENV_VAR
+    api_key = env.get(EMBEDDING_API_KEY_ENV_VAR, "").strip()
+    if not api_key and api_key_env != EMBEDDING_API_KEY_ENV_VAR:
+        api_key = env.get(api_key_env, "").strip()
+    return EmbeddingSettings(
+        raw_url=env.get(SEMANTIC_ENV_VAR, "").strip() or local.url,
+        model=env.get(EMBEDDING_MODEL_ENV_VAR, "").strip() or local.model,
+        api_key_env=api_key_env,
+        api_key=api_key or None,
+    )
+
+
+def load_local_embedding_config(repo_root: Path) -> LocalEmbeddingConfig:
+    config_path = repo_root / LOCAL_CONFIG_RELATIVE_PATH
+    if not config_path.exists():
+        return LocalEmbeddingConfig()
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise local_config_error(repo_root, f"invalid JSON: {exc}") from exc
+    except OSError as exc:
+        raise local_config_error(repo_root, f"could not read local config: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise local_config_error(repo_root, "local config must be a JSON object")
+    unknown_top_level = sorted(set(payload) - {"embedding"})
+    if unknown_top_level:
+        raise local_config_error(
+            repo_root,
+            f"unknown local config fields: {', '.join(unknown_top_level)}",
+        )
+
+    embedding = payload.get("embedding", {})
+    if not isinstance(embedding, dict):
+        raise local_config_error(repo_root, "embedding config must be a JSON object")
+    if "api_key" in embedding:
+        raise local_config_error(
+            repo_root,
+            "embedding.api_key is not allowed; set embedding.api_key_env instead",
+        )
+    unknown_embedding = sorted(set(embedding) - {"url", "base_url", "model", "api_key_env"})
+    if unknown_embedding:
+        raise local_config_error(
+            repo_root,
+            f"unknown embedding config fields: {', '.join(unknown_embedding)}",
+        )
+
+    url = local_config_string(repo_root, embedding, "url")
+    base_url = local_config_string(repo_root, embedding, "base_url")
+    if url and base_url and url != base_url:
+        raise local_config_error(
+            repo_root,
+            "embedding.url and embedding.base_url must not disagree",
+        )
+    api_key_env = local_config_string(repo_root, embedding, "api_key_env")
+    return LocalEmbeddingConfig(
+        url=url or base_url,
+        model=local_config_string(repo_root, embedding, "model"),
+        api_key_env=api_key_env or EMBEDDING_API_KEY_ENV_VAR,
+    )
+
+
+def local_config_string(repo_root: Path, payload: dict[str, Any], key: str) -> str:
+    value = payload.get(key, "")
+    if not isinstance(value, str):
+        raise local_config_error(repo_root, f"embedding.{key} must be a string")
+    return value.strip()
+
+
+def local_config_error(repo_root: Path, message: str) -> BrickIndexError:
+    return BrickIndexError(
+        f"invalid Brick local config: {message}",
+        code="invalid_local_config",
+        payload={
+            "status": "invalid",
+            "reason": "invalid_local_config",
+            "path": local_config_relative_path(repo_root),
+            "message": message,
+        },
+    )
+
+
+def local_config_relative_path(repo_root: Path) -> str:
+    return relative_to_repo(repo_root, repo_root / LOCAL_CONFIG_RELATIVE_PATH)
 
 
 def embedding_endpoint_url(raw_url: str) -> str:

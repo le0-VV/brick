@@ -11,9 +11,11 @@ or merge-review memory may affect your work.
    falling back to `pip` for dependencies declared in
    `.agents/brick/pyproject.toml`.
 2. Check whether semantic retrieval is configured for this machine. Brick reads
-   embedding settings from `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL`.
-   If either is missing, `./brick memory search` still works, but it is
-   keyword-only; report that limitation before relying on retrieval quality.
+   embedding settings from the gitignored `.agents/brick/config.local.json`
+   file, with `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL` available as
+   overrides. If `embedding.url` or `embedding.model` is missing from both
+   sources, `./brick memory search` still works, but it is keyword-only; report
+   that limitation before relying on retrieval quality.
 3. Search memory before relying on assumptions:
 
    ```sh

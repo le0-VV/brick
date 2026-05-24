@@ -45,6 +45,7 @@ well enough for another agent to continue from the repository alone.
 - [x] Brick monetization is donation-supported, not based on commercial license
   gates.
 - [x] V1 uses Apache-2.0 as the free-for-all permissive license.
+- [x] Embedding endpoint configuration is device-local and gitignored.
 
 ## Must-Win Workflow
 
@@ -75,9 +76,14 @@ well enough for another agent to continue from the repository alone.
 - [x] Create a repo-root `brick` symlink that uses a relative path to
   `.agents/brick/bin/brick`.
 - [x] Create `.agents/brick/.venv/` as Brick's owned virtual environment.
+- [x] Create `.agents/brick/config.local.json` as Brick's device-local config
+  file.
+- [x] Create `.agents/brick/config.example.json` as the tracked local-config
+  template.
 - [x] Create `.agents/brick/index/` for generated index state.
 - [x] Create `.agents/brick/conflicts/` for generated conflict reports.
 - [x] Gitignore `.agents/brick/.venv/`.
+- [x] Gitignore `.agents/brick/config.local.json`.
 - [x] Gitignore `.agents/brick/index/`.
 - [x] Gitignore `.agents/brick/conflicts/`.
 - [x] Create `.agents/memory/` as canonical memory root.
@@ -90,6 +96,8 @@ Target structure:
 .agents/
   brick/
     pyproject.toml
+    config.example.json
+    config.local.json   # device-local, gitignored
     bin/
       brick
     setup.py or setup.sh
@@ -401,6 +409,10 @@ Embedding:
   variable.
 - [x] Use an OpenAI-compatible embedding endpoint contract for v1.
 - [x] Define model configuration as `BRICK_EMBEDDING_MODEL`.
+- [x] Support `.agents/brick/config.local.json` for per-machine embedding
+  endpoint and model configuration.
+- [x] Keep literal API keys out of local config by using `embedding.api_key_env`.
+- [x] Let embedding environment variables override local config values.
 - [x] Support a local system-wide embedding service.
 - [x] Support API-backed embeddings.
 - [x] Fall back to keyword search when no embedding endpoint or API is
@@ -523,6 +535,8 @@ Goal: make Brick runnable from a cloned repo.
 - [x] Add `.agents/brick/bin/brick`.
 - [x] Add repo-root relative `brick` symlink.
 - [x] Add Brick-owned venv handling.
+- [x] Add device-local `.agents/brick/config.local.json` handling.
+- [x] Add tracked `.agents/brick/config.example.json`.
 - [x] Put Brick-owned venv state under `.agents/brick/.venv/`.
 - [x] Implement `brick setup`.
 - [x] Add basic CLI argument parser.
@@ -531,6 +545,7 @@ Goal: make Brick runnable from a cloned repo.
 - [x] Add gitignore entries for generated index state.
 - [x] Add gitignore entries for generated conflict reports.
 - [x] Add gitignore entry for `.agents/brick/.venv/`.
+- [x] Add gitignore entry for `.agents/brick/config.local.json`.
 
 Exit criteria:
 
@@ -595,6 +610,8 @@ Goal: give agents useful retrieval immediately, even without embeddings.
 - [x] Implement keyword fallback search.
 - [x] Implement optional embedding endpoint integration through
   `BRICK_EMBEDDING_URL`.
+- [x] Implement device-local embedding config through
+  `.agents/brick/config.local.json`.
 - [x] Implement OpenAI-compatible embedding requests.
 - [x] Implement `brick memory search`.
 - [x] Implement retrieval context package JSON.

@@ -2,4 +2,5 @@
 .agents/brick/.venv/
 .agents/brick/index/
 .agents/brick/conflicts/
+.agents/brick/config.local.json
 __pycache__/

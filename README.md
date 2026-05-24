@@ -51,7 +51,7 @@ files.
 - `./brick memory validate` checks schema, hashes, evidence, secrets, and PII.
 - `./brick rebuild` regenerates `.agents/brick/index/brick.sqlite3`.
 - `./brick memory search` uses keyword search by default and hybrid semantic
-  search when `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL` are configured.
+  search when local embedding settings are configured.
 - `./brick merge-driver` only auto-resolves exact or fast-forward-safe cases;
   otherwise it writes review reports under `.agents/brick/conflicts/`.
 - Agents can attach proposed conflict resolutions through `./brick conflicts
@@ -59,17 +59,31 @@ files.
 
 ## Embeddings
 
-Semantic search is optional. Configure an OpenAI-compatible embeddings endpoint:
+Semantic search is optional. `brick setup` creates a gitignored, device-local
+config file at `.agents/brick/config.local.json`. Configure an OpenAI-compatible
+embeddings endpoint there:
+
+```json
+{
+  "embedding": {
+    "url": "http://127.0.0.1:1234/v1",
+    "model": "text-embedding-model",
+    "api_key_env": "BRICK_EMBEDDING_API_KEY"
+  }
+}
+```
+
+Then rebuild:
 
 ```sh
-export BRICK_EMBEDDING_URL=http://127.0.0.1:1234/v1
-export BRICK_EMBEDDING_MODEL=text-embedding-model
-export BRICK_EMBEDDING_API_KEY=optional-token
 ./brick rebuild
 ```
 
-`BRICK_EMBEDDING_URL` may be either a base URL ending in `/v1` or a full
-`/embeddings` endpoint.
+`embedding.url` may be either a base URL ending in `/v1` or a full
+`/embeddings` endpoint. Do not put API keys directly in the local config; put
+the environment variable name in `embedding.api_key_env`. The
+`BRICK_EMBEDDING_URL`, `BRICK_EMBEDDING_MODEL`, and `BRICK_EMBEDDING_API_KEY`
+environment variables override the local file when set.
 
 ## Release Scope
 

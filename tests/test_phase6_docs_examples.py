@@ -57,6 +57,8 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         ):
             self.assertIn(command, readme + usage)
         self.assertIn("Im calling it brick because fuck naming.", readme)
+        self.assertIn(".agents/brick/config.local.json", readme)
+        self.assertIn(".agents/brick/config.local.json", usage)
         self.assertIn("BRICK_EMBEDDING_URL", usage)
         self.assertIn("BRICK_EMBEDDING_MODEL", usage)
         self.assertIn("keyword-only", usage)

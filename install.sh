@@ -22,6 +22,7 @@ copy_from_checkout() {
   mkdir -p .agents/brick/bin .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick
   cp "$source_dir/.agents/brick/bin/brick" .agents/brick/bin/brick
   cp "$source_dir/.agents/brick/AGENT_USAGE.md" .agents/brick/AGENT_USAGE.md
+  cp "$source_dir/.agents/brick/config.example.json" .agents/brick/config.example.json
   cp "$source_dir/.agents/brick/setup.py" .agents/brick/setup.py
   cp "$source_dir/.agents/brick/pyproject.toml" .agents/brick/pyproject.toml
   cp "$source_dir/.agents/brick/examples/memory-add/blocked-unsafe.json" .agents/brick/examples/memory-add/blocked-unsafe.json
@@ -45,6 +46,7 @@ fetch_from_base_url() {
   mkdir -p .agents/brick/bin .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick
   curl -fsSL "$base_url/.agents/brick/bin/brick" -o .agents/brick/bin/brick
   curl -fsSL "$base_url/.agents/brick/AGENT_USAGE.md" -o .agents/brick/AGENT_USAGE.md
+  curl -fsSL "$base_url/.agents/brick/config.example.json" -o .agents/brick/config.example.json
   curl -fsSL "$base_url/.agents/brick/setup.py" -o .agents/brick/setup.py
   curl -fsSL "$base_url/.agents/brick/pyproject.toml" -o .agents/brick/pyproject.toml
   curl -fsSL "$base_url/.agents/brick/examples/memory-add/blocked-unsafe.json" -o .agents/brick/examples/memory-add/blocked-unsafe.json
