@@ -161,3 +161,9 @@
 - If embedding rebuild fails because the endpoint errors or returns malformed data, `brick rebuild` should fail without replacing the previous index.
 - `brick memory search` should use hybrid scoring when indexed embeddings and a query embedding are available, combining deterministic keyword score with cosine similarity.
 - If query embedding fails at search time, Brick should keep returning keyword results and report semantic search as unavailable with the embedding failure reason.
+- Brick v1 conflict reports should be generated as JSON files under `.agents/brick/conflicts/<conflict-id>.json`, with ids shaped as `conflict-<ULID>`.
+- `brick conflicts list` should return JSON by default with sorted conflict report summaries, and `brick conflicts export <id>` should return the full report JSON by id or filename stem.
+- `brick merge-driver` should accept Git's configured `%O %A %B %L %P` argument shape, treating `%O` as base, `%A` as ours/current and the file to overwrite on successful resolution, `%B` as theirs, and `%P` as the conflicted memory path when present.
+- The first v1 merge-driver implementation should auto-resolve only exact identical outputs and fast-forward cases where one side is unchanged from base.
+- When the merge driver cannot prove a safe exact or fast-forward resolution, it should write a conflict report and exit nonzero without silently editing the canonical memory.
+- Merge-driver conflict reports should use the accepted v1 report shape with `required_action: human_review`; semantic similarity detection and structured frontmatter merging can be added after the safe baseline.
