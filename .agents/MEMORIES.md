@@ -18,6 +18,8 @@
 - V1 memory metadata should use one required machine-facing `type` plus multiple flexible `tags`.
 - Brick should not have a separate `topics` field in v1; topic-like labeling should use `tags`.
 - The `type` field should drive schema validation, rendering, and agent behavior, while `tags` should support discovery and semantic/human labeling.
+- Every memory should require a `title` frontmatter field.
+- Memory bodies should be freeform Markdown and should not be required to duplicate the title as a top-level heading.
 - Memory IDs should use plain ULIDs without a `mem_` prefix.
 - Every memory should require a `status` frontmatter field with allowed values `active`, `superseded`, `tombstone`, and `redacted`.
 - Brick should not allow `draft` as a committed memory status; candidates should stay outside canonical memory until valid.
