@@ -309,9 +309,9 @@ Command surface:
 - [x] Implement `brick memory validate [path]`.
 - [x] Implement `brick memory search "query"`.
 - [x] Implement `brick rebuild`.
-- [ ] Implement `brick merge-driver ...`.
-- [ ] Implement `brick conflicts list`.
-- [ ] Implement `brick conflicts export <id>`.
+- [x] Implement `brick merge-driver ...`.
+- [x] Implement `brick conflicts list`.
+- [x] Implement `brick conflicts export <id>`.
 
 Input and output rules:
 
@@ -321,8 +321,8 @@ Input and output rules:
 - [x] Make `brick memory add` return JSON by default.
 - [x] Make `brick memory search` return JSON by default.
 - [x] Make `brick memory validate` return JSON by default.
-- [ ] Make `brick conflicts list` return JSON by default.
-- [ ] Make `brick conflicts export` return JSON by default.
+- [x] Make `brick conflicts list` return JSON by default.
+- [x] Make `brick conflicts export` return JSON by default.
 - [ ] Allow `brick setup` to print readable text by default.
 - [x] Allow `brick rebuild` to print readable text by default.
 - [x] Add `--pretty` for JSON-oriented commands in v1.
@@ -422,29 +422,29 @@ Retrieval:
 
 Core merge behavior:
 
-- [ ] Implement `brick merge-driver`.
+- [x] Implement `brick merge-driver`.
 - [x] Add `.gitattributes` guidance for memory files.
 - [x] Have `brick setup` install or configure the merge driver.
-- [ ] Auto-merge exact duplicate memory IDs.
-- [ ] Auto-merge exact duplicate content.
-- [ ] Do not silently merge semantically similar memories.
+- [x] Auto-merge exact duplicate memory IDs.
+- [x] Auto-merge exact duplicate content.
+- [x] Do not silently merge semantically similar memories.
 - [ ] Create structured conflict/review items for semantic similarity.
 - [ ] Allow agents to propose merged memories.
-- [ ] Require human acceptance before Brick writes a final merged memory.
+- [x] Require human acceptance before Brick writes a final merged memory.
 - [ ] Merge deterministic frontmatter fields automatically when non-conflicting.
 - [ ] Use normal Git-style text merge behavior for Markdown body edits.
 - [ ] Block when the same structured frontmatter field changes differently on
   both sides.
-- [ ] Create a conflict report when structured frontmatter conflicts.
+- [x] Create a conflict report when structured frontmatter conflicts.
 - [ ] Union distinct entries for append-only fields such as `evidence`.
 
 Conflict reports:
 
-- [ ] Store conflict reports under `.agents/brick/conflicts/`.
-- [ ] Keep conflict reports gitignored by default.
-- [ ] Implement `brick conflicts list`.
-- [ ] Implement `brick conflicts export <id>`.
-- [ ] Make conflict reports exportable for PR discussion or review.
+- [x] Store conflict reports under `.agents/brick/conflicts/`.
+- [x] Keep conflict reports gitignored by default.
+- [x] Implement `brick conflicts list`.
+- [x] Implement `brick conflicts export <id>`.
+- [x] Make conflict reports exportable for PR discussion or review.
 - [x] Use the following conflict report JSON schema as the v1 baseline.
 
 Proposed conflict report shape:
@@ -609,23 +609,23 @@ Exit criteria:
 
 Goal: make fork/upstream memory collaboration safe.
 
-- [ ] Implement `brick merge-driver`.
-- [ ] Add `.gitattributes` guidance.
-- [ ] Configure the merge driver from `brick setup`.
-- [ ] Implement exact duplicate auto-merge.
+- [x] Implement `brick merge-driver`.
+- [x] Add `.gitattributes` guidance.
+- [x] Configure the merge driver from `brick setup`.
+- [x] Implement exact duplicate auto-merge.
 - [ ] Implement structured frontmatter merge.
 - [ ] Implement evidence union behavior.
 - [ ] Implement semantic similarity detection hook.
-- [ ] Implement conflict report generation.
-- [ ] Implement `brick conflicts list`.
-- [ ] Implement `brick conflicts export`.
+- [x] Implement conflict report generation.
+- [x] Implement `brick conflicts list`.
+- [x] Implement `brick conflicts export`.
 
 Exit criteria:
 
-- [ ] Exact duplicates do not create noisy conflicts.
-- [ ] Semantic similarity never silently rewrites memory.
-- [ ] Agents can read conflict reports and propose fixes.
-- [ ] Users can export conflict reports for PR review.
+- [x] Exact duplicates do not create noisy conflicts.
+- [x] Semantic similarity never silently rewrites memory.
+- [x] Agents can read conflict reports and propose fixes.
+- [x] Users can export conflict reports for PR review.
 
 ### Phase 6 - Agent Instructions And Examples
 
@@ -660,7 +660,7 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 - [x] Add CLI JSON contract tests.
 - [x] Add rebuild/search tests.
 - [x] Add embedding endpoint and hybrid search tests.
-- [ ] Add merge-driver fixture tests.
+- [x] Add merge-driver fixture tests.
 - [ ] Add redaction/tombstone tests.
 
 Exit criteria:
@@ -680,7 +680,7 @@ Exit criteria:
 - [x] Define exact OpenAI-compatible embedding endpoint request/response
   details.
 - [x] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
-- [ ] Refine conflict report fields during implementation without changing the
+- [x] Refine conflict report fields during implementation without changing the
   accepted v1 baseline shape.
 - [x] Define exact `.gitattributes` and local Git config mutations performed by
   `brick setup`.

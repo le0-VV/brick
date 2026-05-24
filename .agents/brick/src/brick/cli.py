@@ -12,6 +12,12 @@ from typing import Iterable, Sequence
 from venv import EnvBuilder
 
 from brick import __version__
+from brick.conflicts import (
+    BrickConflictError,
+    export_conflict_report,
+    list_conflict_reports,
+    run_merge_driver,
+)
 from brick.index import BrickIndexError, rebuild_index, search_index
 from brick.memory import (
     MemoryAddError,
@@ -434,6 +440,43 @@ def cmd_memory_search(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_merge_driver(args: argparse.Namespace) -> int:
+    try:
+        repo_root = find_repo_root()
+        result = run_merge_driver(repo_root, args.merge_args)
+    except (BrickError, BrickConflictError) as exc:
+        print(f"brick merge-driver error: {exc}", file=sys.stderr)
+        return 2
+
+    if result.status == "ok":
+        return 0
+    if result.report is not None:
+        print(
+            f"brick merge-driver requires human review: "
+            f"{result.report.path.relative_to(repo_root)}",
+            file=sys.stderr,
+        )
+    return 1
+
+
+def cmd_conflicts_list(args: argparse.Namespace) -> int:
+    try:
+        payload = list_conflict_reports(find_repo_root())
+    except (BrickError, BrickConflictError) as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+    emit_json(payload, args.pretty)
+    return 0
+
+
+def cmd_conflicts_export(args: argparse.Namespace) -> int:
+    try:
+        payload = export_conflict_report(find_repo_root(), args.id)
+    except (BrickError, BrickConflictError) as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+    emit_json(payload, args.pretty)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="brick")
     parser.add_argument("--version", action="store_true", help="show Brick version")
@@ -462,7 +505,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     merge_driver = subparsers.add_parser("merge-driver", help="Git merge driver entrypoint")
     merge_driver.add_argument("merge_args", nargs=argparse.REMAINDER)
-    merge_driver.set_defaults(func=cmd_stub("merge-driver"))
+    merge_driver.set_defaults(func=cmd_merge_driver)
 
     memory = subparsers.add_parser("memory", help="memory operations")
     memory_subparsers = memory.add_subparsers(dest="memory_command")
@@ -492,12 +535,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     conflicts_list = conflicts_subparsers.add_parser("list", help="list conflict reports")
     conflicts_list.add_argument("--pretty", action="store_true", help="pretty-print JSON")
-    conflicts_list.set_defaults(func=cmd_stub("conflicts list"))
+    conflicts_list.set_defaults(func=cmd_conflicts_list)
 
     conflicts_export = conflicts_subparsers.add_parser("export", help="export a conflict report")
     conflicts_export.add_argument("id")
     conflicts_export.add_argument("--pretty", action="store_true", help="pretty-print JSON")
-    conflicts_export.set_defaults(func=cmd_stub("conflicts export"))
+    conflicts_export.set_defaults(func=cmd_conflicts_export)
 
     return parser
 

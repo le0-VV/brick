@@ -25,6 +25,7 @@ copy_from_checkout() {
   cp "$source_dir/.agents/brick/pyproject.toml" .agents/brick/pyproject.toml
   cp "$source_dir/.agents/brick/src/brick/__init__.py" .agents/brick/src/brick/__init__.py
   cp "$source_dir/.agents/brick/src/brick/cli.py" .agents/brick/src/brick/cli.py
+  cp "$source_dir/.agents/brick/src/brick/conflicts.py" .agents/brick/src/brick/conflicts.py
   cp "$source_dir/.agents/brick/src/brick/index.py" .agents/brick/src/brick/index.py
   cp "$source_dir/.agents/brick/src/brick/memory.py" .agents/brick/src/brick/memory.py
 }
@@ -37,6 +38,7 @@ fetch_from_base_url() {
   curl -fsSL "$base_url/.agents/brick/pyproject.toml" -o .agents/brick/pyproject.toml
   curl -fsSL "$base_url/.agents/brick/src/brick/__init__.py" -o .agents/brick/src/brick/__init__.py
   curl -fsSL "$base_url/.agents/brick/src/brick/cli.py" -o .agents/brick/src/brick/cli.py
+  curl -fsSL "$base_url/.agents/brick/src/brick/conflicts.py" -o .agents/brick/src/brick/conflicts.py
   curl -fsSL "$base_url/.agents/brick/src/brick/index.py" -o .agents/brick/src/brick/index.py
   curl -fsSL "$base_url/.agents/brick/src/brick/memory.py" -o .agents/brick/src/brick/memory.py
 }
