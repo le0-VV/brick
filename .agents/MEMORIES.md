@@ -115,7 +115,7 @@
 - Block-until-confirmed PII handling should use a JSON field for confirmation rather than an interactive-only flow.
 - Public human names and emails should still require explicit confirmation before being saved to memory.
 - Brick's license strategy should not preserve a commercial licensing gate; Brick should be free for everyone and donation-supported.
-- The conflict report JSON schema still needs proposals before it is finalized.
+- The proposed conflict report JSON schema in `ROADMAP.md` is approved as the v1 baseline.
 - Merge-driver setup should be handled as part of `brick setup`.
 - V1 examples should include one `decision`, one `command`, one `routine`, one `skill`, and one blocked unsafe-memory example.
 - Setting a repository up to use Brick should be possible by curling an installer/setup script published by Brick.
@@ -125,3 +125,8 @@
 - The licensing model should keep Brick available to indie users and allow indie projects that later become commercial to keep using Brick under the same permissive terms.
 - Brick should be free for everyone, including companies, with no commercial licensing gate; the user expects to rely on donations rather than restricting commercial use.
 - Brick should use a permissive free-for-all license; Apache-2.0 is the preferred v1 license because it permits broad commercial use while including an explicit patent grant.
+- Brick setup should back up a pre-existing `AGENTS.md` to `AGENTS.md.brick-backup`.
+- Brick setup should add `.agents/memory/**/*.md merge=brick-memory` to `.gitattributes`.
+- Brick setup should configure local Git with `merge.brick-memory.name` set to `Brick memory merge driver`.
+- Brick setup should configure local Git with `merge.brick-memory.driver` set to `./brick merge-driver %O %A %B %L %P`.
+- The curlable installer should support `BRICK_SOURCE_BASE_URL` as the raw source base URL for fetching Brick release files.
