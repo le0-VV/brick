@@ -40,7 +40,7 @@ well enough for another agent to continue from the repository alone.
   `AGENTS.md` handling.
 - [x] Brick is free for everyone, including companies and commercial projects.
 - [x] The licensing model must keep Brick available to indie users.
-- [x] Indie projects that use Brick and later become commercial should have a
+- [x] Indie projects that use Brick and later become commercial should keep
   the same permissive usage rights.
 - [x] Brick monetization is donation-supported, not based on commercial license
   gates.
@@ -69,19 +69,19 @@ well enough for another agent to continue from the repository alone.
 
 ## Target Repository Layout
 
-- [ ] Create `.agents/brick/pyproject.toml`.
-- [ ] Create one setup entrypoint under `.agents/brick/`.
-- [ ] Create `.agents/brick/bin/brick` as the actual executable.
-- [ ] Create a repo-root `brick` symlink that uses a relative path to
+- [x] Create `.agents/brick/pyproject.toml`.
+- [x] Create one setup entrypoint under `.agents/brick/`.
+- [x] Create `.agents/brick/bin/brick` as the actual executable.
+- [x] Create a repo-root `brick` symlink that uses a relative path to
   `.agents/brick/bin/brick`.
-- [ ] Create `.agents/brick/.venv/` as Brick's owned virtual environment.
-- [ ] Create `.agents/brick/index/` for generated index state.
-- [ ] Create `.agents/brick/conflicts/` for generated conflict reports.
-- [ ] Gitignore `.agents/brick/.venv/`.
-- [ ] Gitignore `.agents/brick/index/`.
-- [ ] Gitignore `.agents/brick/conflicts/`.
-- [ ] Create `.agents/memory/` as canonical memory root.
-- [ ] Organize memory files by type folder under `.agents/memory/`.
+- [x] Create `.agents/brick/.venv/` as Brick's owned virtual environment.
+- [x] Create `.agents/brick/index/` for generated index state.
+- [x] Create `.agents/brick/conflicts/` for generated conflict reports.
+- [x] Gitignore `.agents/brick/.venv/`.
+- [x] Gitignore `.agents/brick/index/`.
+- [x] Gitignore `.agents/brick/conflicts/`.
+- [x] Create `.agents/memory/` as canonical memory root.
+- [x] Organize memory files by type folder under `.agents/memory/`.
 - [ ] Use ULID-slug filenames for memory files.
 
 Target structure:
@@ -298,13 +298,13 @@ Blocked candidate response shape:
 
 Entrypoint rules:
 
-- [ ] Put the actual executable at `.agents/brick/bin/brick`.
-- [ ] Expose a repo-root `brick` symlink using a relative path.
+- [x] Put the actual executable at `.agents/brick/bin/brick`.
+- [x] Expose a repo-root `brick` symlink using a relative path.
 - [x] Use Python stdlib `argparse` for the v1 CLI.
 
 Command surface:
 
-- [ ] Implement `brick setup`.
+- [x] Implement `brick setup`.
 - [ ] Implement `brick memory add`.
 - [ ] Implement `brick memory validate [path]`.
 - [ ] Implement `brick memory search "query"`.
@@ -358,14 +358,14 @@ Proposed `brick memory add` input contract:
 
 ## Dependency Checklist
 
-- [ ] Assume Python is available.
+- [x] Assume Python is available.
 - [ ] Prefer `uv` for dependency setup.
 - [ ] Fall back to `pip`.
-- [ ] Keep Brick dependencies under `.agents/brick/pyproject.toml`.
-- [ ] Use a Brick-owned virtual environment.
-- [ ] Put the Brick-owned virtual environment at `.agents/brick/.venv/`.
-- [ ] Do not use the host project's main virtual environment.
-- [ ] Provide one setup entrypoint.
+- [x] Keep Brick dependencies under `.agents/brick/pyproject.toml`.
+- [x] Use a Brick-owned virtual environment.
+- [x] Put the Brick-owned virtual environment at `.agents/brick/.venv/`.
+- [x] Do not use the host project's main virtual environment.
+- [x] Provide one setup entrypoint.
 - [ ] Make Brick commands run setup or resolve dependencies when possible.
 - [ ] Emit actionable setup/dependency messages when automatic setup cannot
   proceed.
@@ -412,8 +412,8 @@ Retrieval:
 Core merge behavior:
 
 - [ ] Implement `brick merge-driver`.
-- [ ] Add `.gitattributes` guidance for memory files.
-- [ ] Have `brick setup` install or configure the merge driver.
+- [x] Add `.gitattributes` guidance for memory files.
+- [x] Have `brick setup` install or configure the merge driver.
 - [ ] Auto-merge exact duplicate memory IDs.
 - [ ] Auto-merge exact duplicate content.
 - [ ] Do not silently merge semantically similar memories.
@@ -506,25 +506,25 @@ Exit criteria:
 
 Goal: make Brick runnable from a cloned repo.
 
-- [ ] Add `.agents/brick/pyproject.toml`.
-- [ ] Add setup entrypoint.
-- [ ] Add `.agents/brick/bin/brick`.
-- [ ] Add repo-root relative `brick` symlink.
-- [ ] Add Brick-owned venv handling.
-- [ ] Put Brick-owned venv state under `.agents/brick/.venv/`.
-- [ ] Implement `brick setup`.
-- [ ] Add basic CLI argument parser.
-- [ ] Use Python stdlib `argparse`.
-- [ ] Add curlable repository bootstrap script.
-- [ ] Add gitignore entries for generated index state.
-- [ ] Add gitignore entries for generated conflict reports.
-- [ ] Add gitignore entry for `.agents/brick/.venv/`.
+- [x] Add `.agents/brick/pyproject.toml`.
+- [x] Add setup entrypoint.
+- [x] Add `.agents/brick/bin/brick`.
+- [x] Add repo-root relative `brick` symlink.
+- [x] Add Brick-owned venv handling.
+- [x] Put Brick-owned venv state under `.agents/brick/.venv/`.
+- [x] Implement `brick setup`.
+- [x] Add basic CLI argument parser.
+- [x] Use Python stdlib `argparse`.
+- [x] Add curlable repository bootstrap script.
+- [x] Add gitignore entries for generated index state.
+- [x] Add gitignore entries for generated conflict reports.
+- [x] Add gitignore entry for `.agents/brick/.venv/`.
 
 Exit criteria:
 
-- [ ] A fresh clone can run `brick setup`.
+- [x] A fresh clone can run `brick setup`.
 - [ ] Commands fail with actionable dependency/setup messages.
-- [ ] No generated state is accidentally tracked.
+- [x] No generated state is accidentally tracked.
 
 ### Phase 2 - Schema And Validation
 
@@ -621,10 +621,10 @@ Exit criteria:
 Goal: make Brick self-explanatory to agents working in a repo.
 
 - [ ] Add agent-facing usage instructions.
-- [ ] Add Brick `AGENTS.md` template.
-- [ ] Add `AGENTS.md` backup flow for repositories with existing agent
+- [x] Add Brick `AGENTS.md` template.
+- [x] Add `AGENTS.md` backup flow for repositories with existing agent
   instructions.
-- [ ] Add first-task instruction requiring user-reviewed merge of backed-up
+- [x] Add first-task instruction requiring user-reviewed merge of backed-up
   instructions and Brick instructions.
 - [ ] Add example memory files for each core type.
 - [ ] Add example `brick memory add` payloads.
@@ -670,9 +670,9 @@ Exit criteria:
 - [ ] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
 - [ ] Refine conflict report fields during implementation without changing the
   accepted v1 baseline shape.
-- [ ] Define exact `.gitattributes` and local Git config mutations performed by
+- [x] Define exact `.gitattributes` and local Git config mutations performed by
   `brick setup`.
-- [ ] Define exact `AGENTS.md` backup filename and merge-instruction text.
+- [x] Define exact `AGENTS.md` backup filename and merge-instruction text.
 
 ## V1 Non-Goals
 

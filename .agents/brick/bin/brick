@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+
+def _bootstrap() -> None:
+    brick_root = Path(__file__).resolve().parents[1]
+    src = brick_root / "src"
+    sys.path.insert(0, str(src))
+
+
+_bootstrap()
+
+from brick.cli import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

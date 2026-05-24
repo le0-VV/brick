@@ -1,1 +1,5 @@
 .agents/TODO.md
+.agents/brick/.venv/
+.agents/brick/index/
+.agents/brick/conflicts/
+__pycache__/

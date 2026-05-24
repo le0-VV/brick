@@ -1,0 +1,373 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import stat
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Iterable, Sequence
+from venv import EnvBuilder
+
+from brick import __version__
+
+
+GITIGNORE_ENTRIES = (
+    ".agents/brick/.venv/",
+    ".agents/brick/index/",
+    ".agents/brick/conflicts/",
+)
+GITATTRIBUTES_ENTRY = ".agents/memory/**/*.md merge=brick-memory"
+MEMORY_TYPES = (
+    "decision",
+    "command",
+    "routine",
+    "skill",
+    "preference",
+    "fact",
+    "incident",
+    "pattern",
+    "task",
+    "policy",
+)
+AGENTS_BACKUP_NAME = "AGENTS.md.brick-backup"
+BRICK_AGENT_MARKER = "<!-- brick-agent-instructions:v1 -->"
+
+
+class BrickError(RuntimeError):
+    pass
+
+
+@dataclass
+class SetupResult:
+    repo_root: Path
+    actions: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "status": "ok",
+            "repo_root": str(self.repo_root),
+            "actions": self.actions,
+            "warnings": self.warnings,
+        }
+
+
+def run_git(repo_root: Path, args: Sequence[str]) -> str:
+    completed = subprocess.run(
+        ["git", *args],
+        cwd=repo_root,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or completed.stdout.strip()
+        raise BrickError(f"git {' '.join(args)} failed: {detail}")
+    return completed.stdout.strip()
+
+
+def find_repo_root(start: Path | None = None) -> Path:
+    cwd = (start or Path.cwd()).resolve()
+    completed = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=cwd,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if completed.returncode != 0:
+        raise BrickError("Brick must be run inside a Git worktree.")
+    return Path(completed.stdout.strip()).resolve()
+
+
+def ensure_dir(path: Path, result: SetupResult) -> None:
+    if path.is_dir():
+        return
+    if path.exists():
+        raise BrickError(f"Expected directory path but found file: {path}")
+    path.mkdir(parents=True, exist_ok=True)
+    result.actions.append(f"created directory {path.relative_to(result.repo_root)}")
+
+
+def ensure_executable(path: Path, result: SetupResult) -> None:
+    if not path.is_file():
+        raise BrickError(f"Brick executable is missing: {path}")
+    mode = path.stat().st_mode
+    wanted = mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    if wanted != mode:
+        path.chmod(wanted)
+        result.actions.append(f"made executable {path.relative_to(result.repo_root)}")
+
+
+def ensure_root_symlink(repo_root: Path, result: SetupResult) -> None:
+    link = repo_root / "brick"
+    target = Path(".agents/brick/bin/brick")
+    if link.is_symlink():
+        current = Path(os.readlink(link))
+        if current == target:
+            return
+        raise BrickError(f"Refusing to replace existing brick symlink to {current}")
+    if link.exists():
+        raise BrickError("Refusing to replace existing repo-root brick path.")
+    link.symlink_to(target)
+    result.actions.append("created repo-root brick symlink")
+
+
+def ensure_list_file(path: Path, entries: Iterable[str], result: SetupResult) -> None:
+    existing_text = path.read_text(encoding="utf-8") if path.exists() else ""
+    existing_lines = set(existing_text.splitlines())
+    missing = [entry for entry in entries if entry not in existing_lines]
+    if not missing:
+        return
+    prefix = existing_text
+    if prefix and not prefix.endswith("\n"):
+        prefix += "\n"
+    path.write_text(prefix + "\n".join(missing) + "\n", encoding="utf-8")
+    result.actions.append(f"updated {path.relative_to(result.repo_root)}")
+
+
+def brick_agents_text(has_backup: bool) -> str:
+    first_task = (
+        f"- First task: ask the user to review and merge `{AGENTS_BACKUP_NAME}` "
+        "with these Brick instructions before doing other project work.\n"
+        if has_backup
+        else ""
+    )
+    return (
+        "# Instructions for all agents\n\n"
+        f"{BRICK_AGENT_MARKER}\n\n"
+        "## Brick Memory\n\n"
+        f"{first_task}"
+        "- Run `./brick setup` if Brick tooling, generated directories, or Git "
+        "configuration appear incomplete.\n"
+        "- Search memory before relying on assumptions: `./brick memory search "
+        "\"<query>\"`.\n"
+        "- Add or update memory only through Brick commands; do not hand-edit "
+        "canonical memory files unless the user explicitly asks.\n"
+        "- Treat memory candidates that contain secrets or possible PII as "
+        "blocked until Brick validates or the user confirms public content.\n"
+        "- Keep generated Brick state under `.agents/brick/index/` and "
+        "`.agents/brick/conflicts/` out of Git.\n"
+    )
+
+
+def ensure_agents_file(repo_root: Path, result: SetupResult) -> None:
+    agents_path = repo_root / "AGENTS.md"
+    backup_path = repo_root / AGENTS_BACKUP_NAME
+    if not agents_path.exists():
+        agents_path.write_text(brick_agents_text(False), encoding="utf-8")
+        result.actions.append("created AGENTS.md with Brick instructions")
+        return
+
+    current = agents_path.read_text(encoding="utf-8")
+    if BRICK_AGENT_MARKER in current:
+        desired = brick_agents_text(backup_path.exists())
+        if current != desired:
+            agents_path.write_text(desired, encoding="utf-8")
+            result.actions.append("updated Brick AGENTS.md instructions")
+        return
+
+    if backup_path.exists():
+        raise BrickError(
+            f"Existing AGENTS.md is not Brick-managed and {AGENTS_BACKUP_NAME} "
+            "already exists; refusing to overwrite either file."
+        )
+    backup_path.write_text(current, encoding="utf-8")
+    agents_path.write_text(brick_agents_text(True), encoding="utf-8")
+    result.actions.append(f"backed up AGENTS.md to {AGENTS_BACKUP_NAME}")
+    result.actions.append("installed Brick AGENTS.md instructions")
+
+
+def ensure_venv(repo_root: Path, result: SetupResult, skip_venv: bool) -> None:
+    venv_dir = repo_root / ".agents/brick/.venv"
+    if skip_venv:
+        result.warnings.append("skipped Brick virtual environment creation")
+        return
+    python_bin = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    if python_bin.exists():
+        return
+    EnvBuilder(with_pip=True).create(venv_dir)
+    result.actions.append("created Brick virtual environment")
+
+
+def ensure_merge_driver(repo_root: Path, result: SetupResult) -> None:
+    run_git(
+        repo_root,
+        ["config", "--local", "merge.brick-memory.name", "Brick memory merge driver"],
+    )
+    run_git(
+        repo_root,
+        [
+            "config",
+            "--local",
+            "merge.brick-memory.driver",
+            "./brick merge-driver %O %A %B %L %P",
+        ],
+    )
+    result.actions.append("configured local Git merge driver")
+
+
+def setup_repo(
+    repo_root: Path,
+    *,
+    skip_venv: bool = False,
+    install_agents: bool = True,
+    configure_git: bool = True,
+) -> SetupResult:
+    repo_root = repo_root.resolve()
+    result = SetupResult(repo_root=repo_root)
+    brick_root = repo_root / ".agents/brick"
+
+    ensure_dir(brick_root / "index", result)
+    ensure_dir(brick_root / "conflicts", result)
+    for memory_type in MEMORY_TYPES:
+        ensure_dir(repo_root / ".agents/memory" / memory_type, result)
+
+    ensure_executable(brick_root / "bin/brick", result)
+    ensure_root_symlink(repo_root, result)
+    ensure_list_file(repo_root / ".gitignore", GITIGNORE_ENTRIES, result)
+    ensure_list_file(repo_root / ".gitattributes", (GITATTRIBUTES_ENTRY,), result)
+
+    if configure_git:
+        ensure_merge_driver(repo_root, result)
+    if install_agents:
+        ensure_agents_file(repo_root, result)
+    ensure_venv(repo_root, result, skip_venv)
+    return result
+
+
+def emit_json(payload: dict[str, object], pretty: bool = False) -> None:
+    if pretty:
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return
+    print(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+
+
+def emit_error(message: str, *, pretty: bool = False, as_json: bool = True) -> int:
+    payload = {"status": "error", "reason": message}
+    if as_json:
+        emit_json(payload, pretty)
+    else:
+        print(f"error: {message}", file=sys.stderr)
+    return 1
+
+
+def command_not_implemented(command: str, pretty: bool) -> int:
+    emit_json(
+        {
+            "status": "error",
+            "reason": "not_implemented",
+            "command": command,
+        },
+        pretty,
+    )
+    return 2
+
+
+def cmd_setup(args: argparse.Namespace) -> int:
+    try:
+        result = setup_repo(
+            find_repo_root(),
+            skip_venv=args.skip_venv,
+            install_agents=not args.no_agent_instructions,
+            configure_git=not args.no_git_config,
+        )
+    except BrickError as exc:
+        return emit_error(str(exc), as_json=args.json)
+
+    if args.json:
+        emit_json(result.to_dict(), args.pretty)
+        return 0
+
+    print("Brick setup complete.")
+    for action in result.actions:
+        print(f"- {action}")
+    for warning in result.warnings:
+        print(f"- warning: {warning}")
+    if not result.actions and not result.warnings:
+        print("- no changes needed")
+    return 0
+
+
+def cmd_stub(name: str):
+    def _inner(args: argparse.Namespace) -> int:
+        return command_not_implemented(name, getattr(args, "pretty", False))
+
+    return _inner
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="brick")
+    parser.add_argument("--version", action="store_true", help="show Brick version")
+    subparsers = parser.add_subparsers(dest="command")
+
+    setup = subparsers.add_parser("setup", help="prepare this repository for Brick")
+    setup.add_argument("--json", action="store_true", help="emit machine JSON")
+    setup.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    setup.add_argument("--skip-venv", action="store_true", help="do not create .agents/brick/.venv")
+    setup.add_argument(
+        "--no-agent-instructions",
+        action="store_true",
+        help="do not create or update AGENTS.md",
+    )
+    setup.add_argument(
+        "--no-git-config",
+        action="store_true",
+        help="do not write local Git merge-driver config",
+    )
+    setup.set_defaults(func=cmd_setup)
+
+    rebuild = subparsers.add_parser("rebuild", help="rebuild the local Brick index")
+    rebuild.set_defaults(func=cmd_stub("rebuild"))
+
+    merge_driver = subparsers.add_parser("merge-driver", help="Git merge driver entrypoint")
+    merge_driver.add_argument("merge_args", nargs=argparse.REMAINDER)
+    merge_driver.set_defaults(func=cmd_stub("merge-driver"))
+
+    memory = subparsers.add_parser("memory", help="memory operations")
+    memory_subparsers = memory.add_subparsers(dest="memory_command")
+
+    memory_add = memory_subparsers.add_parser("add", help="add a memory from JSON stdin")
+    memory_add.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_add.set_defaults(func=cmd_stub("memory add"))
+
+    memory_validate = memory_subparsers.add_parser("validate", help="validate memory files")
+    memory_validate.add_argument("path", nargs="?")
+    memory_validate.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_validate.set_defaults(func=cmd_stub("memory validate"))
+
+    memory_search = memory_subparsers.add_parser("search", help="search memory")
+    memory_search.add_argument("query")
+    memory_search.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_search.set_defaults(func=cmd_stub("memory search"))
+
+    conflicts = subparsers.add_parser("conflicts", help="conflict report operations")
+    conflicts_subparsers = conflicts.add_subparsers(dest="conflicts_command")
+
+    conflicts_list = conflicts_subparsers.add_parser("list", help="list conflict reports")
+    conflicts_list.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    conflicts_list.set_defaults(func=cmd_stub("conflicts list"))
+
+    conflicts_export = conflicts_subparsers.add_parser("export", help="export a conflict report")
+    conflicts_export.add_argument("id")
+    conflicts_export.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    conflicts_export.set_defaults(func=cmd_stub("conflicts export"))
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.version:
+        print(__version__)
+        return 0
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return 2
+    return args.func(args)
