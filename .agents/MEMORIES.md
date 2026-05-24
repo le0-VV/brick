@@ -73,6 +73,8 @@
 - `brick rebuild` should be the canonical command to regenerate the local index from canonical Markdown memory files.
 - Stable content hashes may live in Markdown, but volatile index state such as embedding timestamps, model versions, chunk hashes, vector DB status, and index timestamps should live outside canonical Markdown.
 - Memory files should live under `.agents/memory/`.
+- Memory files should be organized by type folder under `.agents/memory/`.
+- Memory filenames should include the memory ULID plus a short human-readable slug, e.g. `.agents/memory/decision/01JX3Y1Y8H6TR4Y3Q38K1W9P2A-hybrid-search.md`.
 - Stale memories should be marked `status: superseded`, linked to their replacement, and kept with lower retrieval priority.
 - Retrieval should ignore superseded memories by default while allowing explicit retrieval when requested.
 - Low-confidence durable memory should not be a normal state. Unclear or low-confidence candidate memories should be clarified, rejected, or kept out of the durable memory set instead of being indexed as trusted memory.
