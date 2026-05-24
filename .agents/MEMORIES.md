@@ -23,6 +23,8 @@
 - Brick should not allow `draft` as a committed memory status; candidates should stay outside canonical memory until valid.
 - Every memory should require `created_at` and `updated_at` frontmatter fields.
 - Every memory should require a stable `content_hash` metadata field.
+- Memories may include optional `supersedes` and `related` arrays.
+- When present, `supersedes` and `related` entries must contain valid memory ULIDs.
 - `command`, `routine`, and `skill` memory types should have lightweight structured fields rather than keeping all type-specific detail only in the Markdown body.
 - `command` memories should support structured fields such as `command`, `cwd`, `when_to_use`, `expected_output`, and `failure_notes`.
 - `routine` and `skill` memories should support structured fields such as `steps`, `prerequisites`, and `verify`.
