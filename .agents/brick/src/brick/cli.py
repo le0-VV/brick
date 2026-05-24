@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -34,6 +36,8 @@ GITIGNORE_ENTRIES = (
     ".agents/brick/conflicts/",
 )
 GITATTRIBUTES_ENTRY = ".agents/memory/**/*.md merge=brick-memory"
+BRICK_VENV_RELATIVE_PATH = Path(".agents/brick/.venv")
+BRICK_PYPROJECT_RELATIVE_PATH = Path(".agents/brick/pyproject.toml")
 MEMORY_TYPES = (
     "decision",
     "command",
@@ -48,6 +52,7 @@ MEMORY_TYPES = (
 )
 AGENTS_BACKUP_NAME = "AGENTS.md.brick-backup"
 BRICK_AGENT_MARKER = "<!-- brick-agent-instructions:v1 -->"
+DEPENDENCY_PATTERN = re.compile(r"""["']([^"']+)["']""")
 
 
 class BrickError(RuntimeError):
@@ -200,15 +205,150 @@ def ensure_agents_file(repo_root: Path, result: SetupResult) -> None:
 
 
 def ensure_venv(repo_root: Path, result: SetupResult, skip_venv: bool) -> None:
-    venv_dir = repo_root / ".agents/brick/.venv"
+    venv_dir = repo_root / BRICK_VENV_RELATIVE_PATH
     if skip_venv:
         result.warnings.append("skipped Brick virtual environment creation")
         return
-    python_bin = venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    python_bin = venv_python_path(venv_dir)
     if python_bin.exists():
+        install_brick_dependencies(repo_root, python_bin, result)
         return
-    EnvBuilder(with_pip=True).create(venv_dir)
-    result.actions.append("created Brick virtual environment")
+
+    uv_path = shutil.which("uv")
+    if uv_path:
+        completed = run_dependency_command([uv_path, "venv", str(venv_dir)], repo_root)
+        if completed.returncode == 0:
+            result.actions.append("created Brick virtual environment with uv")
+        else:
+            result.warnings.append(
+                "uv venv failed; falling back to Python venv: "
+                f"{command_failure_detail(completed)}"
+            )
+            create_venv_with_stdlib(venv_dir, result)
+    else:
+        create_venv_with_stdlib(venv_dir, result)
+
+    if not python_bin.exists():
+        raise BrickError(
+            f"Brick virtual environment was created but Python is missing at {python_bin}. "
+            "Remove `.agents/brick/.venv` and run `./brick setup` again."
+        )
+    install_brick_dependencies(repo_root, python_bin, result)
+
+
+def venv_python_path(venv_dir: Path) -> Path:
+    return venv_dir / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+
+
+def create_venv_with_stdlib(venv_dir: Path, result: SetupResult) -> None:
+    try:
+        EnvBuilder(with_pip=True).create(venv_dir)
+    except Exception as exc:
+        raise BrickError(
+            "Could not create Brick virtual environment. Install `uv` or ensure "
+            "Python's `venv` module is available, then run `./brick setup` again. "
+            f"Detail: {exc}"
+        ) from exc
+    result.actions.append("created Brick virtual environment with Python venv")
+
+
+def install_brick_dependencies(repo_root: Path, python_bin: Path, result: SetupResult) -> None:
+    dependencies = read_project_dependencies(repo_root / BRICK_PYPROJECT_RELATIVE_PATH)
+    if not dependencies:
+        return
+
+    uv_path = shutil.which("uv")
+    if uv_path:
+        completed = run_dependency_command(
+            [uv_path, "pip", "install", "--python", str(python_bin), *dependencies],
+            repo_root,
+        )
+        if completed.returncode == 0:
+            result.actions.append("installed Brick dependencies with uv")
+            return
+        result.warnings.append(
+            "uv dependency install failed; trying pip fallback: "
+            f"{command_failure_detail(completed)}"
+        )
+
+    completed = run_dependency_command(
+        [str(python_bin), "-m", "pip", "install", *dependencies],
+        repo_root,
+    )
+    if completed.returncode != 0:
+        raise BrickError(
+            "Could not install Brick dependencies with pip. Install `uv` or repair "
+            "pip in `.agents/brick/.venv`, then run `./brick setup` again. "
+            f"Detail: {command_failure_detail(completed)}"
+        )
+    result.actions.append("installed Brick dependencies with pip")
+
+
+def read_project_dependencies(pyproject_path: Path) -> list[str]:
+    if not pyproject_path.exists():
+        raise BrickError(
+            f"Brick dependency file is missing: {pyproject_path}. "
+            "Re-run the Brick installer, then run `./brick setup` again."
+        )
+    text = pyproject_path.read_text(encoding="utf-8")
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        return parse_project_dependencies(text)
+
+    payload = tomllib.loads(text)
+    project = payload.get("project", {})
+    dependencies = project.get("dependencies", [])
+    if not isinstance(dependencies, list) or not all(
+        isinstance(item, str) for item in dependencies
+    ):
+        raise BrickError("Brick pyproject dependencies must be a list of strings.")
+    return dependencies
+
+
+def parse_project_dependencies(pyproject_text: str) -> list[str]:
+    in_project = False
+    collecting = False
+    buffer: list[str] = []
+    for raw_line in pyproject_text.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_project = line == "[project]"
+            collecting = False
+            buffer.clear()
+            continue
+        if not in_project:
+            continue
+        if collecting:
+            buffer.append(line)
+            if "]" in line:
+                return DEPENDENCY_PATTERN.findall(" ".join(buffer))
+            continue
+        if line.startswith("dependencies"):
+            _, value = line.split("=", 1)
+            buffer.append(value.strip())
+            if "]" in value:
+                return DEPENDENCY_PATTERN.findall(" ".join(buffer))
+            collecting = True
+    return []
+
+
+def run_dependency_command(command: Sequence[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        list(command),
+        cwd=cwd,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
+def command_failure_detail(completed: subprocess.CompletedProcess[str]) -> str:
+    detail = completed.stderr.strip() or completed.stdout.strip()
+    return detail or f"exit code {completed.returncode}"
 
 
 def ensure_merge_driver(repo_root: Path, result: SetupResult) -> None:

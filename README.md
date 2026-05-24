@@ -34,6 +34,11 @@ Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under
 `.agents/brick/examples/` so agents can discover the workflow from repository
 files.
 
+`brick setup` also owns Brick's local Python environment at
+`.agents/brick/.venv`. It prefers `uv` when available, falls back to Python
+`venv` plus `pip`, and installs dependencies declared in
+`.agents/brick/pyproject.toml`.
+
 ## Memory Model
 
 - Canonical memory lives under `.agents/memory/<type>/` as Markdown with

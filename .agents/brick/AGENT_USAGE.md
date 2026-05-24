@@ -7,6 +7,9 @@ or merge-review memory may affect your work.
 
 1. Run `./brick setup` if Brick directories, the root `brick` symlink, or Git
    merge-driver config appear incomplete.
+   Setup also creates or repairs `.agents/brick/.venv`, preferring `uv` and
+   falling back to `pip` for dependencies declared in
+   `.agents/brick/pyproject.toml`.
 2. Search memory before relying on assumptions:
 
    ```sh

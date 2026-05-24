@@ -359,15 +359,15 @@ Proposed `brick memory add` input contract:
 ## Dependency Checklist
 
 - [x] Assume Python is available.
-- [ ] Prefer `uv` for dependency setup.
-- [ ] Fall back to `pip`.
+- [x] Prefer `uv` for dependency setup.
+- [x] Fall back to `pip`.
 - [x] Keep Brick dependencies under `.agents/brick/pyproject.toml`.
 - [x] Use a Brick-owned virtual environment.
 - [x] Put the Brick-owned virtual environment at `.agents/brick/.venv/`.
 - [x] Do not use the host project's main virtual environment.
 - [x] Provide one setup entrypoint.
-- [ ] Make Brick commands run setup or resolve dependencies when possible.
-- [ ] Emit actionable setup/dependency messages when automatic setup cannot
+- [x] Make Brick commands run setup or resolve dependencies when possible.
+- [x] Emit actionable setup/dependency messages when automatic setup cannot
   proceed.
 
 ## Local Index And Retrieval Checklist
@@ -534,7 +534,7 @@ Goal: make Brick runnable from a cloned repo.
 Exit criteria:
 
 - [x] A fresh clone can run `brick setup`.
-- [ ] Commands fail with actionable dependency/setup messages.
+- [x] Commands fail with actionable dependency/setup messages.
 - [x] No generated state is accidentally tracked.
 
 ### Phase 2 - Schema And Validation
