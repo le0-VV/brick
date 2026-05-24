@@ -153,7 +153,7 @@
 - `brick memory search` should ignore non-active memories by default, allow `superseded` memories only with an explicit flag, and keep `tombstone` and `redacted` memories out of normal retrieval.
 - Retrieval context packages should include memory id, title, type, status, tags, relative source path, full-text path, source metadata, evidence, summary, content hash, score, confidence label, and matched terms.
 - If `BRICK_EMBEDDING_URL` is not configured, `brick memory search` should still work through keyword search and report semantic search as unavailable because the environment variable is missing.
-- Embedding API configuration is per-machine; Brick agent instructions should tell agents to check whether `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL` are set before relying on Brick retrieval, and to report keyword-only fallback when semantic retrieval is unavailable.
+- Embedding API configuration is per-machine; repos using Brick should have a device-local config file that includes embedding server configuration, and Brick agent instructions should tell agents to check that local embedding config before relying on Brick retrieval.
 - Brick v1 should standardize `BRICK_EMBEDDING_MODEL` alongside `BRICK_EMBEDDING_URL`; semantic indexing/search requires both variables.
 - Brick v1 should optionally read `BRICK_EMBEDDING_API_KEY` and send it as `Authorization: Bearer <key>` for API-backed OpenAI-compatible embedding endpoints.
 - `BRICK_EMBEDDING_URL` may be either a base URL such as `http://localhost:1234/v1` or a full embeddings endpoint; Brick should append `/embeddings` unless the configured path already ends with `/embeddings`.
