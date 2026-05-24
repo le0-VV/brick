@@ -428,7 +428,7 @@ Core merge behavior:
 - [x] Auto-merge exact duplicate memory IDs.
 - [x] Auto-merge exact duplicate content.
 - [x] Do not silently merge semantically similar memories.
-- [ ] Create structured conflict/review items for semantic similarity.
+- [x] Create structured conflict/review items for semantic similarity.
 - [ ] Allow agents to propose merged memories.
 - [x] Require human acceptance before Brick writes a final merged memory.
 - [x] Merge deterministic frontmatter fields automatically when non-conflicting.
@@ -615,7 +615,7 @@ Goal: make fork/upstream memory collaboration safe.
 - [x] Implement exact duplicate auto-merge.
 - [x] Implement structured frontmatter merge.
 - [x] Implement evidence union behavior.
-- [ ] Implement semantic similarity detection hook.
+- [x] Implement semantic similarity detection hook.
 - [x] Implement conflict report generation.
 - [x] Implement `brick conflicts list`.
 - [x] Implement `brick conflicts export`.

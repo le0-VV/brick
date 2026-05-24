@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,10 +21,57 @@ from brick.memory import (
 
 CONFLICT_SCHEMA_VERSION = 1
 CONFLICTS_RELATIVE_PATH = Path(".agents/brick/conflicts")
+SEMANTIC_SIMILARITY_THRESHOLD = 0.5
+SEMANTIC_SIMILARITY_MIN_TOKENS = 6
+SEMANTIC_FRONTMATTER_EXCLUDED_FIELDS = {
+    "id",
+    "status",
+    "created_at",
+    "updated_at",
+    "content_hash",
+    "supersedes",
+    "related",
+}
+SEMANTIC_STOP_WORDS = {
+    "a",
+    "an",
+    "and",
+    "are",
+    "as",
+    "at",
+    "be",
+    "by",
+    "for",
+    "from",
+    "has",
+    "have",
+    "in",
+    "into",
+    "is",
+    "it",
+    "its",
+    "of",
+    "on",
+    "or",
+    "should",
+    "that",
+    "the",
+    "this",
+    "to",
+    "when",
+    "with",
+}
+TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 
 
 class BrickConflictError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class SemanticSimilarity:
+    method: str
+    score: float
 
 
 @dataclass
@@ -279,11 +327,36 @@ def create_merge_conflict_report(
     appendable_unions: dict[str, list[Any]] | None = None,
 ) -> ConflictReportResult:
     conflict_id = f"conflict-{generate_ulid()}"
+    kind = "memory_merge_conflict"
+    similarity: dict[str, Any] = {
+        "method": "not_evaluated",
+        "score": None,
+    }
+    report_conflicts = conflicts or [
+        {
+            "field": "file",
+            "reason": "merge_driver_safe_resolution_not_available",
+        }
+    ]
+    if conflicts is None:
+        semantic_similarity = semantic_similarity_conflict(args.ours, args.theirs)
+        if semantic_similarity is not None:
+            kind = "semantic_similarity"
+            similarity = {
+                "method": semantic_similarity.method,
+                "score": semantic_similarity.score,
+            }
+            report_conflicts = [
+                {
+                    "field": "body",
+                    "reason": "semantically_similar_memory",
+                }
+            ]
     report = {
         "schema_version": CONFLICT_SCHEMA_VERSION,
         "id": conflict_id,
         "created_at": format_timestamp(datetime.now(UTC)),
-        "kind": "memory_merge_conflict",
+        "kind": kind,
         "severity": "review_required",
         "merge": {
             "base_ref": path_ref(args.base),
@@ -296,17 +369,8 @@ def create_merge_conflict_report(
             memory_report_entry(repo_root, "ours", args.ours),
             memory_report_entry(repo_root, "theirs", args.theirs),
         ],
-        "similarity": {
-            "method": "not_evaluated",
-            "score": None,
-        },
-        "conflicts": conflicts
-        or [
-            {
-                "field": "file",
-                "reason": "merge_driver_safe_resolution_not_available",
-            }
-        ],
+        "similarity": similarity,
+        "conflicts": report_conflicts,
         "appendable_unions": appendable_unions or {"evidence": []},
         "proposed_resolution": None,
         "required_action": "human_review",
@@ -372,6 +436,89 @@ def same_memory_content(ours: Path, theirs: Path) -> bool:
         ours_memory.frontmatter.get("id") == theirs_memory.frontmatter.get("id")
         and ours_memory.frontmatter.get("content_hash") == theirs_memory.frontmatter.get("content_hash")
     )
+
+
+def semantic_similarity_conflict(ours: Path, theirs: Path) -> SemanticSimilarity | None:
+    try:
+        ours_memory = load_memory(ours)
+        theirs_memory = load_memory(theirs)
+    except (OSError, UnicodeDecodeError, MemoryParseError):
+        return None
+
+    ours_id = ours_memory.frontmatter.get("id")
+    theirs_id = theirs_memory.frontmatter.get("id")
+    if (
+        not isinstance(ours_id, str)
+        or not isinstance(theirs_id, str)
+        or ours_id == theirs_id
+    ):
+        return None
+
+    ours_tokens = memory_semantic_tokens(ours_memory)
+    theirs_tokens = memory_semantic_tokens(theirs_memory)
+    if (
+        len(ours_tokens) < SEMANTIC_SIMILARITY_MIN_TOKENS
+        or len(theirs_tokens) < SEMANTIC_SIMILARITY_MIN_TOKENS
+    ):
+        return None
+
+    score = jaccard_score(ours_tokens, theirs_tokens)
+    if score < SEMANTIC_SIMILARITY_THRESHOLD:
+        return None
+    return SemanticSimilarity(method="keyword", score=round(score, 6))
+
+
+def memory_semantic_tokens(document: MemoryDocument) -> set[str]:
+    parts = [document.body]
+    for key, value in document.frontmatter.items():
+        if key in SEMANTIC_FRONTMATTER_EXCLUDED_FIELDS:
+            continue
+        parts.extend(iter_semantic_strings(value))
+    tokens: set[str] = set()
+    for part in parts:
+        tokens.update(tokenize_semantic_text(part))
+    return tokens
+
+
+def iter_semantic_strings(value: Any) -> list[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        strings: list[str] = []
+        for item in value:
+            strings.extend(iter_semantic_strings(item))
+        return strings
+    if isinstance(value, dict):
+        strings = []
+        for item in value.values():
+            strings.extend(iter_semantic_strings(item))
+        return strings
+    return []
+
+
+def tokenize_semantic_text(text: str) -> set[str]:
+    tokens: set[str] = set()
+    for match in TOKEN_PATTERN.finditer(text.lower()):
+        token = normalize_token(match.group(0))
+        if len(token) < 3 or token in SEMANTIC_STOP_WORDS:
+            continue
+        tokens.add(token)
+    return tokens
+
+
+def normalize_token(token: str) -> str:
+    if len(token) > 4 and token.endswith("ies"):
+        return f"{token[:-3]}y"
+    if len(token) > 4 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
+def jaccard_score(left: set[str], right: set[str]) -> float:
+    union = left | right
+    if not union:
+        return 0.0
+    return len(left & right) / len(union)
 
 
 def memory_report_entry(repo_root: Path, side: str, path: Path) -> dict[str, Any]:

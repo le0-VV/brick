@@ -301,6 +301,62 @@ class Phase5MergeConflictTests(unittest.TestCase):
             report["conflicts"],
         )
 
+    def test_merge_driver_reports_semantic_similarity_for_different_memory_ids(self) -> None:
+        repo = make_repo(self)
+        base_text = memory_text(title="Base memory", body="Base body.")
+        ours_text = memory_text(
+            memory_id="01JX3Y1Y8H6TR4Y3Q38K1W9P2B",
+            title="Hybrid retrieval for memory search",
+            body=(
+                "Brick memory search should combine keyword ranking and semantic "
+                "embedding retrieval so agents can find project context."
+            ),
+            frontmatter_overrides={
+                "tags": ["retrieval", "search", "semantic"],
+                "evidence": [{"kind": "test", "text": "hybrid retrieval evidence"}],
+            },
+        )
+        theirs_text = memory_text(
+            memory_id="01JX3Y1Y8H6TR4Y3Q38K1W9P2C",
+            title="Hybrid search for project memory",
+            body=(
+                "Brick should combine keyword search with semantic embedding "
+                "retrieval to give agents accurate project context."
+            ),
+            frontmatter_overrides={
+                "tags": ["retrieval", "search", "semantic"],
+                "evidence": [{"kind": "test", "text": "semantic search evidence"}],
+            },
+        )
+        base, ours, theirs = write_merge_files(repo, base_text, ours_text, theirs_text)
+
+        completed = run_cli(
+            repo,
+            "merge-driver",
+            str(base),
+            str(ours),
+            str(theirs),
+            "7",
+            ".agents/memory/decision/example.md",
+        )
+
+        self.assertEqual(completed.returncode, 1)
+        self.assertEqual(ours.read_text(encoding="utf-8"), ours_text)
+        listed = run_cli(repo, "conflicts", "list")
+        report_id = json.loads(listed.stdout)["reports"][0]["id"]
+        exported = run_cli(repo, "conflicts", "export", report_id)
+        report = json.loads(exported.stdout)["report"]
+        self.assertEqual(report["kind"], "semantic_similarity")
+        self.assertEqual(report["similarity"]["method"], "keyword")
+        self.assertGreaterEqual(
+            report["similarity"]["score"],
+            conflicts.SEMANTIC_SIMILARITY_THRESHOLD,
+        )
+        self.assertEqual(
+            report["conflicts"],
+            [{"field": "body", "reason": "semantically_similar_memory"}],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
