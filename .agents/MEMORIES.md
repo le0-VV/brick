@@ -102,3 +102,22 @@
 - When answers are unclear, ask more granular questions or work through them slowly instead of forcing a premature full specification.
 - Capture firm answers in `.agents/MEMORIES.md`; after the clarification process is finished, produce a detailed design plan and roadmap.
 - `ROADMAP.md` should be checklist-oriented so agents can follow long-horizon work more easily.
+
+## Settled v1 implementation choices
+
+- Brick's actual executable should live at `.agents/brick/bin/brick`.
+- Repositories using Brick should expose a repo-root `brick` symlink that points to `.agents/brick/bin/brick` by relative path.
+- V1 should use Python stdlib `argparse` for the CLI rather than adding a framework dependency such as Typer or Click.
+- Brick's owned virtual environment should live at `.agents/brick/.venv` and be kept out of Git.
+- Brick embedding integration should use an OpenAI-compatible endpoint contract.
+- `brick memory add` should have a Brick-designed JSON stdin contract; the user delegates the exact shape to the agent/system design.
+- `content_hash` should be based on normalized memory content while excluding volatile fields such as `content_hash` itself and `updated_at`.
+- Block-until-confirmed PII handling should use a JSON field for confirmation rather than an interactive-only flow.
+- Public human names and emails should still require explicit confirmation before being saved to memory.
+- The license strategy should preserve the user's option to capitalize on company/commercial use; the exact license choice still needs a concrete recommendation and explicit selection.
+- The conflict report JSON schema still needs proposals before it is finalized.
+- Merge-driver setup should be handled as part of `brick setup`.
+- V1 examples should include one `decision`, one `command`, one `routine`, one `skill`, and one blocked unsafe-memory example.
+- Setting a repository up to use Brick should be possible by curling an installer/setup script published by Brick.
+- `brick setup` should install or update an `AGENTS.md` containing Brick usage instructions.
+- If a repository already has `AGENTS.md`, Brick setup should back it up and write a new `AGENTS.md` that makes user-reviewed merging of the backup and Brick instructions the first agent task.
