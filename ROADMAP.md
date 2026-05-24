@@ -40,6 +40,9 @@ well enough for another agent to continue from the repository alone.
   `AGENTS.md` handling.
 - [x] The license strategy must preserve the option to capitalize on company
   and commercial use.
+- [x] The licensing model must keep Brick available to indie users.
+- [x] Indie projects that use Brick and later become commercial should have a
+  clear compliance or commercial-license path.
 
 ## Must-Win Workflow
 
@@ -429,7 +432,7 @@ Conflict reports:
 - [ ] Implement `brick conflicts list`.
 - [ ] Implement `brick conflicts export <id>`.
 - [ ] Make conflict reports exportable for PR discussion or review.
-- [ ] Finalize the conflict report JSON schema before implementation.
+- [x] Use the following conflict report JSON schema as the v1 baseline.
 
 Proposed conflict report shape:
 
@@ -661,7 +664,8 @@ Exit criteria:
 - [ ] Define exact OpenAI-compatible embedding endpoint request/response
   details.
 - [ ] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
-- [ ] Approve or revise the proposed conflict report JSON schema.
+- [ ] Refine conflict report fields during implementation without changing the
+  accepted v1 baseline shape.
 - [ ] Define exact `.gitattributes` and local Git config mutations performed by
   `brick setup`.
 - [ ] Define exact `AGENTS.md` backup filename and merge-instruction text.
