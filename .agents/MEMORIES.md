@@ -135,3 +135,11 @@
 - Brick v1 secret detection should start with conservative stdlib regex checks for private-key blocks and likely key/token/secret/password assignments.
 - Brick v1 PII detection should start with conservative stdlib regex checks for emails, phone-like numbers, address-like phrases, and two-word human-name-like phrases, with `confirm_public: true` as the validation escape hatch.
 - `brick memory validate` should return JSON by default with per-file validation results and exit nonzero when any memory is invalid or blocked.
+- `brick memory add` should accept only JSON objects from stdin and reject non-JSON input or unknown top-level fields.
+- `brick memory add` should generate `id`, `created_at`, `updated_at`, `content_hash`, and the ULID-slug filename when those are not supplied by the candidate.
+- `brick memory add` should default memory status to `active` while allowing `active`, `superseded`, `tombstone`, and `redacted`.
+- `brick memory add` should write candidate `fields` into type-specific frontmatter keys after validation.
+- V1 command memories should allow only `command`, `cwd`, `when_to_use`, `expected_output`, and `failure_notes` in `fields`.
+- V1 routine and skill memories should allow only `steps`, `prerequisites`, and `verify` in `fields`.
+- V1 non-command/routine/skill memory types should reject non-empty `fields`.
+- `brick memory add` should validate the rendered Markdown before writing it to canonical memory and return the same blocked/invalid JSON style as validation failures.
