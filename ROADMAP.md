@@ -431,12 +431,12 @@ Core merge behavior:
 - [ ] Create structured conflict/review items for semantic similarity.
 - [ ] Allow agents to propose merged memories.
 - [x] Require human acceptance before Brick writes a final merged memory.
-- [ ] Merge deterministic frontmatter fields automatically when non-conflicting.
+- [x] Merge deterministic frontmatter fields automatically when non-conflicting.
 - [ ] Use normal Git-style text merge behavior for Markdown body edits.
-- [ ] Block when the same structured frontmatter field changes differently on
+- [x] Block when the same structured frontmatter field changes differently on
   both sides.
 - [x] Create a conflict report when structured frontmatter conflicts.
-- [ ] Union distinct entries for append-only fields such as `evidence`.
+- [x] Union distinct entries for append-only fields such as `evidence`.
 
 Conflict reports:
 
@@ -613,8 +613,8 @@ Goal: make fork/upstream memory collaboration safe.
 - [x] Add `.gitattributes` guidance.
 - [x] Configure the merge driver from `brick setup`.
 - [x] Implement exact duplicate auto-merge.
-- [ ] Implement structured frontmatter merge.
-- [ ] Implement evidence union behavior.
+- [x] Implement structured frontmatter merge.
+- [x] Implement evidence union behavior.
 - [ ] Implement semantic similarity detection hook.
 - [x] Implement conflict report generation.
 - [x] Implement `brick conflicts list`.

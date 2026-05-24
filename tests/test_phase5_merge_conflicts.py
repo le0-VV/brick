@@ -30,6 +30,7 @@ def memory_text(
     memory_id: str = "01JX3Y1Y8H6TR4Y3Q38K1W9P2A",
     title: str,
     body: str,
+    frontmatter_overrides: dict[str, Any] | None = None,
 ) -> str:
     frontmatter: dict[str, Any] = {
         "id": memory_id,
@@ -44,6 +45,12 @@ def memory_text(
         "supersedes": [],
         "related": [],
     }
+    if frontmatter_overrides:
+        for key, value in frontmatter_overrides.items():
+            if value is None:
+                frontmatter.pop(key, None)
+            else:
+                frontmatter[key] = value
     frontmatter["content_hash"] = memory.compute_content_hash(frontmatter, body)
     return memory.render_memory_text(frontmatter, body)
 
@@ -191,6 +198,108 @@ class Phase5MergeConflictTests(unittest.TestCase):
         self.assertEqual(report["kind"], "memory_merge_conflict")
         self.assertEqual(report["merge"]["path"], ".agents/memory/decision/example.md")
         self.assertEqual({entry["side"] for entry in report["memories"]}, {"base", "ours", "theirs"})
+
+    def test_merge_driver_structurally_merges_one_sided_frontmatter_and_body_changes(self) -> None:
+        repo = make_repo(self)
+        base_text = memory_text(title="Base memory", body="Base body.")
+        ours_text = memory_text(title="Ours title", body="Base body.")
+        theirs_text = memory_text(title="Base memory", body="Theirs changed body.")
+        base, ours, theirs = write_merge_files(repo, base_text, ours_text, theirs_text)
+
+        completed = run_cli(
+            repo,
+            "merge-driver",
+            str(base),
+            str(ours),
+            str(theirs),
+            "7",
+            ".agents/memory/decision/example.md",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        merged = memory.load_memory(ours)
+        self.assertEqual(merged.frontmatter["title"], "Ours title")
+        self.assertEqual(memory.normalize_body(merged.body), "Theirs changed body.\n")
+        self.assertEqual(
+            merged.frontmatter["content_hash"],
+            memory.compute_content_hash(merged.frontmatter, merged.body),
+        )
+
+    def test_merge_driver_unions_evidence_when_both_sides_append(self) -> None:
+        repo = make_repo(self)
+        base_evidence = [{"kind": "test", "text": "base evidence"}]
+        ours_evidence = [
+            {"kind": "test", "text": "base evidence"},
+            {"kind": "test", "text": "ours evidence"},
+        ]
+        theirs_evidence = [
+            {"kind": "test", "text": "base evidence"},
+            {"kind": "test", "text": "theirs evidence"},
+        ]
+        base_text = memory_text(
+            title="Base memory",
+            body="Base body.",
+            frontmatter_overrides={"evidence": base_evidence},
+        )
+        ours_text = memory_text(
+            title="Base memory",
+            body="Base body.",
+            frontmatter_overrides={"evidence": ours_evidence},
+        )
+        theirs_text = memory_text(
+            title="Base memory",
+            body="Base body.",
+            frontmatter_overrides={"evidence": theirs_evidence},
+        )
+        base, ours, theirs = write_merge_files(repo, base_text, ours_text, theirs_text)
+
+        completed = run_cli(
+            repo,
+            "merge-driver",
+            str(base),
+            str(ours),
+            str(theirs),
+            "7",
+            ".agents/memory/decision/example.md",
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        merged = memory.load_memory(ours)
+        self.assertEqual(
+            [item["text"] for item in merged.frontmatter["evidence"]],
+            ["base evidence", "ours evidence", "theirs evidence"],
+        )
+        self.assertEqual(
+            merged.frontmatter["content_hash"],
+            memory.compute_content_hash(merged.frontmatter, merged.body),
+        )
+
+    def test_merge_driver_blocks_same_frontmatter_field_changed_on_both_sides(self) -> None:
+        repo = make_repo(self)
+        base_text = memory_text(title="Base memory", body="Base body.")
+        ours_text = memory_text(title="Ours title", body="Base body.")
+        theirs_text = memory_text(title="Theirs title", body="Base body.")
+        base, ours, theirs = write_merge_files(repo, base_text, ours_text, theirs_text)
+
+        completed = run_cli(
+            repo,
+            "merge-driver",
+            str(base),
+            str(ours),
+            str(theirs),
+            "7",
+            ".agents/memory/decision/example.md",
+        )
+
+        self.assertEqual(completed.returncode, 1)
+        listed = run_cli(repo, "conflicts", "list")
+        report_id = json.loads(listed.stdout)["reports"][0]["id"]
+        exported = run_cli(repo, "conflicts", "export", report_id)
+        report = json.loads(exported.stdout)["report"]
+        self.assertIn(
+            {"field": "title", "reason": "structured_frontmatter_conflict"},
+            report["conflicts"],
+        )
 
 
 if __name__ == "__main__":

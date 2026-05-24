@@ -6,7 +6,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from brick.memory import MemoryParseError, format_timestamp, generate_ulid, load_memory
+from brick.memory import (
+    MemoryDocument,
+    MemoryParseError,
+    compute_content_hash,
+    format_timestamp,
+    generate_ulid,
+    load_memory,
+    render_memory_text,
+    validate_memory,
+)
 
 
 CONFLICT_SCHEMA_VERSION = 1
@@ -105,6 +114,10 @@ def run_merge_driver(repo_root: Path, raw_args: list[str]) -> MergeDriverResult:
         args.ours.write_text(ours_text, encoding="utf-8")
         return MergeDriverResult(status="ok", action="same_memory_content")
 
+    structured = structured_memory_merge(repo_root, args)
+    if structured is not None:
+        return structured
+
     report = create_merge_conflict_report(repo_root, args)
     return MergeDriverResult(status="conflict", action="human_review", report=report)
 
@@ -121,7 +134,150 @@ def parse_merge_driver_args(raw_args: list[str]) -> MergeDriverArgs:
     )
 
 
-def create_merge_conflict_report(repo_root: Path, args: MergeDriverArgs) -> ConflictReportResult:
+def structured_memory_merge(repo_root: Path, args: MergeDriverArgs) -> MergeDriverResult | None:
+    try:
+        base = load_memory(args.base)
+        ours = load_memory(args.ours)
+        theirs = load_memory(args.theirs)
+    except (OSError, UnicodeDecodeError, MemoryParseError):
+        return None
+
+    memory_ids = {
+        base.frontmatter.get("id"),
+        ours.frontmatter.get("id"),
+        theirs.frontmatter.get("id"),
+    }
+    if len(memory_ids) != 1 or None in memory_ids:
+        return None
+
+    merged_body, body_conflict = merge_text_field("body", base.body, ours.body, theirs.body)
+    if body_conflict is not None:
+        report = create_merge_conflict_report(repo_root, args, conflicts=[body_conflict])
+        return MergeDriverResult(status="conflict", action="human_review", report=report)
+
+    merged_frontmatter, merge_conflicts, appendable_unions = merge_frontmatter(
+        base.frontmatter,
+        ours.frontmatter,
+        theirs.frontmatter,
+    )
+    if merge_conflicts:
+        report = create_merge_conflict_report(
+            repo_root,
+            args,
+            conflicts=merge_conflicts,
+            appendable_unions=appendable_unions,
+        )
+        return MergeDriverResult(status="conflict", action="human_review", report=report)
+
+    merged_frontmatter["content_hash"] = compute_content_hash(merged_frontmatter, merged_body)
+    merged_text = render_memory_text(merged_frontmatter, merged_body)
+    merged_document = MemoryDocument(
+        path=args.ours,
+        frontmatter=merged_frontmatter,
+        body=merged_body,
+        raw_text=merged_text,
+    )
+    validation = validate_memory(merged_document)
+    if validation.status != "ok":
+        report = create_merge_conflict_report(
+            repo_root,
+            args,
+            conflicts=[
+                {
+                    "field": issue.field or "file",
+                    "reason": issue.code,
+                }
+                for issue in validation.issues
+            ],
+            appendable_unions=appendable_unions,
+        )
+        return MergeDriverResult(status="conflict", action="human_review", report=report)
+
+    args.ours.write_text(merged_text, encoding="utf-8")
+    return MergeDriverResult(status="ok", action="structured_merge")
+
+
+def merge_frontmatter(
+    base: dict[str, Any],
+    ours: dict[str, Any],
+    theirs: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, str]], dict[str, list[Any]]]:
+    merged: dict[str, Any] = {}
+    conflicts: list[dict[str, str]] = []
+    appendable_unions: dict[str, list[Any]] = {}
+    for key in sorted(set(base) | set(ours) | set(theirs)):
+        if key == "content_hash":
+            continue
+        base_value = base.get(key)
+        ours_has = key in ours
+        theirs_has = key in theirs
+        ours_value = ours.get(key)
+        theirs_value = theirs.get(key)
+
+        if ours_has and theirs_has and ours_value == theirs_value:
+            merged[key] = ours_value
+        elif ours_value == base_value and theirs_has:
+            merged[key] = theirs_value
+        elif theirs_value == base_value and ours_has:
+            merged[key] = ours_value
+        elif key == "evidence" and lists_available(base_value, ours_value, theirs_value):
+            union = union_json_values(base_value, ours_value, theirs_value)
+            merged[key] = union
+            appendable_unions[key] = union
+        elif key == "updated_at" and ours_has and theirs_has:
+            merged[key] = max(str(ours_value), str(theirs_value))
+        else:
+            conflicts.append(
+                {
+                    "field": key,
+                    "reason": "structured_frontmatter_conflict",
+                }
+            )
+    return merged, conflicts, appendable_unions
+
+
+def merge_text_field(
+    field_name: str,
+    base: str,
+    ours: str,
+    theirs: str,
+) -> tuple[str, dict[str, str] | None]:
+    if ours == theirs:
+        return ours, None
+    if ours == base:
+        return theirs, None
+    if theirs == base:
+        return ours, None
+    return ours, {
+        "field": field_name,
+        "reason": "both_sides_changed",
+    }
+
+
+def lists_available(*values: Any) -> bool:
+    return all(isinstance(value, list) for value in values)
+
+
+def union_json_values(*values: list[Any]) -> list[Any]:
+    seen: set[str] = set()
+    union: list[Any] = []
+    for value_list in values:
+        for item in value_list:
+            key = json.dumps(item, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+            if key in seen:
+                continue
+            seen.add(key)
+            union.append(item)
+    return union
+
+
+def create_merge_conflict_report(
+    repo_root: Path,
+    args: MergeDriverArgs,
+    *,
+    conflicts: list[dict[str, str]] | None = None,
+    appendable_unions: dict[str, list[Any]] | None = None,
+) -> ConflictReportResult:
     conflict_id = f"conflict-{generate_ulid()}"
     report = {
         "schema_version": CONFLICT_SCHEMA_VERSION,
@@ -144,15 +300,14 @@ def create_merge_conflict_report(repo_root: Path, args: MergeDriverArgs) -> Conf
             "method": "not_evaluated",
             "score": None,
         },
-        "conflicts": [
+        "conflicts": conflicts
+        or [
             {
                 "field": "file",
                 "reason": "merge_driver_safe_resolution_not_available",
             }
         ],
-        "appendable_unions": {
-            "evidence": [],
-        },
+        "appendable_unions": appendable_unions or {"evidence": []},
         "proposed_resolution": None,
         "required_action": "human_review",
     }
