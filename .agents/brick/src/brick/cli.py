@@ -12,7 +12,13 @@ from typing import Iterable, Sequence
 from venv import EnvBuilder
 
 from brick import __version__
-from brick.memory import MemoryParseError, discover_memory_files, validate_memory_paths
+from brick.memory import (
+    MemoryAddError,
+    MemoryParseError,
+    create_memory_from_candidate,
+    discover_memory_files,
+    validate_memory_paths,
+)
 
 
 GITIGNORE_ENTRIES = (
@@ -327,6 +333,63 @@ def cmd_memory_validate(args: argparse.Namespace) -> int:
     return 0 if status == "ok" else 1
 
 
+def cmd_memory_add(args: argparse.Namespace) -> int:
+    raw_input = sys.stdin.read()
+    try:
+        candidate = json.loads(raw_input)
+    except json.JSONDecodeError as exc:
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_json",
+                "message": str(exc),
+            },
+            args.pretty,
+        )
+        return 1
+    if not isinstance(candidate, dict):
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_candidate",
+                "issues": [
+                    {
+                        "code": "invalid_field_type",
+                        "message": "memory candidate must be a JSON object",
+                    }
+                ],
+            },
+            args.pretty,
+        )
+        return 1
+
+    try:
+        repo_root = find_repo_root()
+        result = create_memory_from_candidate(repo_root, candidate)
+    except BrickError as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+    except MemoryAddError as exc:
+        issue_payloads = [issue.to_dict() for issue in exc.issues]
+        status = (
+            "blocked"
+            if any(issue.get("code") in {"secret_detected", "possible_pii"} for issue in issue_payloads)
+            else "invalid"
+        )
+        emit_json(
+            {
+                "status": status,
+                "reason": exc.code,
+                "issues": issue_payloads,
+                "actions": ["redact", "confirm_public", "reject"] if status == "blocked" else ["reject"],
+            },
+            args.pretty,
+        )
+        return 1
+
+    emit_json(result.to_dict(repo_root), args.pretty)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="brick")
     parser.add_argument("--version", action="store_true", help="show Brick version")
@@ -360,7 +423,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     memory_add = memory_subparsers.add_parser("add", help="add a memory from JSON stdin")
     memory_add.add_argument("--pretty", action="store_true", help="pretty-print JSON")
-    memory_add.set_defaults(func=cmd_stub("memory add"))
+    memory_add.set_defaults(func=cmd_memory_add)
 
     memory_validate = memory_subparsers.add_parser("validate", help="validate memory files")
     memory_validate.add_argument("path", nargs="?")

@@ -82,7 +82,7 @@ well enough for another agent to continue from the repository alone.
 - [x] Gitignore `.agents/brick/conflicts/`.
 - [x] Create `.agents/memory/` as canonical memory root.
 - [x] Organize memory files by type folder under `.agents/memory/`.
-- [ ] Use ULID-slug filenames for memory files.
+- [x] Use ULID-slug filenames for memory files.
 
 Target structure:
 
@@ -200,19 +200,19 @@ Content hash policy:
 
 ## Type-Specific Schema Checklist
 
-- [ ] Support lightweight structured fields for `command` memories.
-- [ ] Support lightweight structured fields for `routine` memories.
-- [ ] Support lightweight structured fields for `skill` memories.
-- [ ] Keep type-specific detail human-readable in Markdown even when structured
+- [x] Support lightweight structured fields for `command` memories.
+- [x] Support lightweight structured fields for `routine` memories.
+- [x] Support lightweight structured fields for `skill` memories.
+- [x] Keep type-specific detail human-readable in Markdown even when structured
   fields exist.
 
 `command` fields:
 
-- [ ] Support `command`.
-- [ ] Support `cwd`.
-- [ ] Support `when_to_use`.
-- [ ] Support `expected_output`.
-- [ ] Support `failure_notes`.
+- [x] Support `command`.
+- [x] Support `cwd`.
+- [x] Support `when_to_use`.
+- [x] Support `expected_output`.
+- [x] Support `failure_notes`.
 
 Example:
 
@@ -226,9 +226,9 @@ failure_notes: "If dependencies are missing, run brick setup."
 
 `routine` and `skill` fields:
 
-- [ ] Support `steps`.
-- [ ] Support `prerequisites`.
-- [ ] Support `verify`.
+- [x] Support `steps`.
+- [x] Support `prerequisites`.
+- [x] Support `verify`.
 
 Example:
 
@@ -256,7 +256,7 @@ verify: "CI passes and release artifact exists."
 - [x] Reject memories without enough evidence.
 - [x] Reject unsupported durable memory.
 - [x] Reject low-confidence durable memory.
-- [ ] Reject non-JSON input to `brick memory add`.
+- [x] Reject non-JSON input to `brick memory add`.
 - [x] Return structured JSON for validation failures.
 
 Secret and PII checks:
@@ -305,7 +305,7 @@ Entrypoint rules:
 Command surface:
 
 - [x] Implement `brick setup`.
-- [ ] Implement `brick memory add`.
+- [x] Implement `brick memory add`.
 - [x] Implement `brick memory validate [path]`.
 - [ ] Implement `brick memory search "query"`.
 - [ ] Implement `brick rebuild`.
@@ -315,17 +315,17 @@ Command surface:
 
 Input and output rules:
 
-- [ ] Keep memory operations under `brick memory`.
-- [ ] Make `brick memory add` read JSON from stdin by default.
-- [ ] Make `brick memory add` reject non-JSON input.
-- [ ] Make `brick memory add` return JSON by default.
+- [x] Keep memory operations under `brick memory`.
+- [x] Make `brick memory add` read JSON from stdin by default.
+- [x] Make `brick memory add` reject non-JSON input.
+- [x] Make `brick memory add` return JSON by default.
 - [ ] Make `brick memory search` return JSON by default.
 - [x] Make `brick memory validate` return JSON by default.
 - [ ] Make `brick conflicts list` return JSON by default.
 - [ ] Make `brick conflicts export` return JSON by default.
 - [ ] Allow `brick setup` to print readable text by default.
 - [ ] Allow `brick rebuild` to print readable text by default.
-- [ ] Add `--pretty` for JSON-oriented commands in v1.
+- [x] Add `--pretty` for JSON-oriented commands in v1.
 
 Proposed `brick memory add` input contract:
 
@@ -352,9 +352,9 @@ Proposed `brick memory add` input contract:
 }
 ```
 
-- [ ] Finalize the `brick memory add` JSON input contract.
-- [ ] Map `fields` into type-specific frontmatter keys after validation.
-- [ ] Reject unknown top-level fields unless a compatibility policy is added.
+- [x] Finalize the `brick memory add` JSON input contract.
+- [x] Map `fields` into type-specific frontmatter keys after validation.
+- [x] Reject unknown top-level fields unless a compatibility policy is added.
 
 ## Dependency Checklist
 
@@ -554,24 +554,24 @@ Exit criteria:
 
 Goal: let agents add memory without writing files directly.
 
-- [ ] Implement `brick memory add`.
-- [ ] Define JSON stdin input contract.
-- [ ] Support the v1 candidate JSON shape documented in this roadmap.
-- [ ] Implement slug generation.
-- [ ] Implement type-folder file creation.
-- [ ] Implement type-specific field validation.
-- [ ] Implement `active` status handling.
-- [ ] Implement `superseded` status handling.
-- [ ] Implement `tombstone` status handling.
-- [ ] Implement `redacted` status handling.
-- [ ] Implement human-readable `--pretty` output.
+- [x] Implement `brick memory add`.
+- [x] Define JSON stdin input contract.
+- [x] Support the v1 candidate JSON shape documented in this roadmap.
+- [x] Implement slug generation.
+- [x] Implement type-folder file creation.
+- [x] Implement type-specific field validation.
+- [x] Implement `active` status handling.
+- [x] Implement `superseded` status handling.
+- [x] Implement `tombstone` status handling.
+- [x] Implement `redacted` status handling.
+- [x] Implement human-readable `--pretty` output.
 
 Exit criteria:
 
-- [ ] Agents can submit valid JSON and Brick writes Markdown.
-- [ ] Non-JSON input is rejected.
-- [ ] Written files pass validation.
-- [ ] Generated filenames are stable and reviewable.
+- [x] Agents can submit valid JSON and Brick writes Markdown.
+- [x] Non-JSON input is rejected.
+- [x] Written files pass validation.
+- [x] Generated filenames are stable and reviewable.
 
 ### Phase 4 - Index And Search
 

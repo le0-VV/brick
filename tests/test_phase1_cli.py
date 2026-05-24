@@ -117,7 +117,7 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / "brick").is_symlink())
         self.assertIn(cli.BRICK_AGENT_MARKER, (repo / "AGENTS.md").read_text())
 
-    def test_unimplemented_agent_command_returns_json(self) -> None:
+    def test_memory_add_without_json_returns_invalid_json(self) -> None:
         completed = subprocess.run(
             [sys.executable, str(ROOT / ".agents/brick/bin/brick"), "memory", "add"],
             cwd=ROOT,
@@ -126,15 +126,10 @@ class Phase1SetupTests(unittest.TestCase):
             stdout=subprocess.PIPE,
         )
 
-        self.assertEqual(completed.returncode, 2)
-        self.assertEqual(
-            json.loads(completed.stdout),
-            {
-                "status": "error",
-                "reason": "not_implemented",
-                "command": "memory add",
-            },
-        )
+        self.assertEqual(completed.returncode, 1)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["status"], "invalid")
+        self.assertEqual(payload["reason"], "invalid_json")
 
 
 if __name__ == "__main__":

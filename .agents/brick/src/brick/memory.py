@@ -6,7 +6,7 @@ import re
 import secrets
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -24,6 +24,24 @@ ALLOWED_TYPES = {
     "policy",
 }
 ALLOWED_STATUSES = {"active", "superseded", "tombstone", "redacted"}
+ADD_ALLOWED_FIELDS = {
+    "title",
+    "type",
+    "tags",
+    "body",
+    "source",
+    "evidence",
+    "confirm_public",
+    "supersedes",
+    "related",
+    "fields",
+    "status",
+    "id",
+    "created_at",
+    "updated_at",
+}
+COMMAND_FIELDS = {"command", "cwd", "when_to_use", "expected_output", "failure_notes"}
+ROUTINE_SKILL_FIELDS = {"steps", "prerequisites", "verify"}
 REQUIRED_FIELDS = {
     "id",
     "title",
@@ -73,6 +91,21 @@ PII_PATTERNS = (
 
 class MemoryParseError(ValueError):
     pass
+
+
+class MemoryAddError(ValueError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "invalid_candidate",
+        issues: list[ValidationIssue] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.issues = issues or [
+            ValidationIssue(code=code, message=message),
+        ]
 
 
 @dataclass
@@ -140,6 +173,21 @@ class ValidationResult:
         if self.expected_content_hash is not None:
             payload["expected_content_hash"] = self.expected_content_hash
         return payload
+
+
+@dataclass
+class AddMemoryResult:
+    path: Path
+    memory_id: str
+    validation: ValidationResult
+
+    def to_dict(self, repo_root: Path) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "id": self.memory_id,
+            "path": str(self.path.resolve().relative_to(repo_root.resolve())),
+            "validation": self.validation.to_dict(repo_root),
+        }
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -324,6 +372,282 @@ def compute_content_hash(frontmatter: dict[str, Any], body: str) -> str:
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return "sha256:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def create_memory_from_candidate(
+    repo_root: Path,
+    candidate: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> AddMemoryResult:
+    frontmatter, body = build_memory_frontmatter(candidate, now=now)
+    text = render_memory_text(frontmatter, body)
+    document = MemoryDocument(
+        path=memory_path_for_frontmatter(repo_root, frontmatter),
+        frontmatter=frontmatter,
+        body=body,
+        raw_text=text,
+    )
+    validation = validate_memory(document)
+    if validation.status != "ok":
+        raise MemoryAddError(
+            "candidate memory did not pass validation",
+            code=validation.status,
+            issues=validation.issues,
+        )
+    path = document.path
+    if path.exists():
+        raise MemoryAddError(
+            f"memory file already exists: {path}",
+            code="memory_exists",
+        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return AddMemoryResult(path=path, memory_id=frontmatter["id"], validation=validation)
+
+
+def build_memory_frontmatter(
+    candidate: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> tuple[dict[str, Any], str]:
+    validate_candidate_shape(candidate)
+    timestamp = format_timestamp(now or datetime.now(UTC))
+    memory_type = candidate["type"]
+    status = candidate.get("status", "active")
+    memory_id = candidate.get("id") or generate_ulid()
+    created_at = candidate.get("created_at") or timestamp
+    updated_at = candidate.get("updated_at") or created_at
+    body = normalize_body(candidate["body"])
+
+    frontmatter: dict[str, Any] = {
+        "id": memory_id,
+        "title": candidate["title"],
+        "type": memory_type,
+        "status": status,
+        "tags": candidate["tags"],
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "source": candidate["source"],
+        "evidence": candidate["evidence"],
+    }
+    if candidate.get("confirm_public") is True:
+        frontmatter["confirm_public"] = True
+    if "supersedes" in candidate:
+        frontmatter["supersedes"] = candidate["supersedes"]
+    if "related" in candidate:
+        frontmatter["related"] = candidate["related"]
+
+    fields = candidate.get("fields", {})
+    for key in sorted(fields):
+        frontmatter[key] = fields[key]
+
+    frontmatter["content_hash"] = compute_content_hash(frontmatter, body)
+    return frontmatter, body
+
+
+def validate_candidate_shape(candidate: dict[str, Any]) -> None:
+    issues: list[ValidationIssue] = []
+    unknown_fields = sorted(set(candidate) - ADD_ALLOWED_FIELDS)
+    for field_name in unknown_fields:
+        issues.append(
+            ValidationIssue(
+                code="unknown_field",
+                message=f"unknown top-level field {field_name}",
+                field=field_name,
+            )
+        )
+
+    for field_name in ("title", "type", "tags", "body", "source", "evidence"):
+        if field_name not in candidate:
+            issues.append(
+                ValidationIssue(
+                    code="missing_required_field",
+                    message=f"missing required candidate field {field_name}",
+                    field=field_name,
+                )
+            )
+
+    if "title" in candidate and not isinstance(candidate["title"], str):
+        issues.append(invalid_candidate_type("title", "string"))
+    if "type" in candidate:
+        if not isinstance(candidate["type"], str):
+            issues.append(invalid_candidate_type("type", "string"))
+        elif candidate["type"] not in ALLOWED_TYPES:
+            issues.append(ValidationIssue(code="invalid_type", message="type is not allowed", field="type"))
+    if "status" in candidate:
+        if not isinstance(candidate["status"], str):
+            issues.append(invalid_candidate_type("status", "string"))
+        elif candidate["status"] not in ALLOWED_STATUSES:
+            issues.append(
+                ValidationIssue(code="invalid_status", message="status is not allowed", field="status")
+            )
+    if "tags" in candidate and not is_string_list(candidate["tags"]):
+        issues.append(invalid_candidate_type("tags", "list of strings"))
+    if "body" in candidate and not isinstance(candidate["body"], str):
+        issues.append(invalid_candidate_type("body", "string"))
+    if "source" in candidate:
+        if not isinstance(candidate["source"], dict):
+            issues.append(invalid_candidate_type("source", "mapping"))
+        elif not isinstance(candidate["source"].get("kind"), str) or not candidate["source"].get("kind"):
+            issues.append(
+                ValidationIssue(
+                    code="missing_required_field",
+                    message="source.kind is required",
+                    field="source.kind",
+                )
+            )
+    if "evidence" in candidate and not valid_evidence_candidate(candidate["evidence"]):
+        issues.append(
+            ValidationIssue(
+                code="missing_evidence",
+                message="evidence must contain at least one non-empty string or mapping",
+                field="evidence",
+            )
+        )
+    if "confirm_public" in candidate and not isinstance(candidate["confirm_public"], bool):
+        issues.append(invalid_candidate_type("confirm_public", "boolean"))
+    for field_name in ("supersedes", "related"):
+        if field_name in candidate and not valid_ulid_candidate_list(candidate[field_name]):
+            issues.append(
+                ValidationIssue(
+                    code="invalid_ulid",
+                    message=f"{field_name} must be a list of plain uppercase ULIDs",
+                    field=field_name,
+                )
+            )
+    for field_name in ("id",):
+        if field_name in candidate:
+            if not isinstance(candidate[field_name], str):
+                issues.append(invalid_candidate_type(field_name, "string"))
+            elif not ULID_RE.fullmatch(candidate[field_name]):
+                issues.append(
+                    ValidationIssue(
+                        code="invalid_ulid",
+                        message=f"{field_name} must be a plain uppercase ULID",
+                        field=field_name,
+                    )
+                )
+    for field_name in ("created_at", "updated_at"):
+        if field_name in candidate and not isinstance(candidate[field_name], str):
+            issues.append(invalid_candidate_type(field_name, "string"))
+
+    validate_candidate_fields(candidate, issues)
+    if issues:
+        raise MemoryAddError("invalid memory candidate", issues=issues)
+
+
+def validate_candidate_fields(candidate: dict[str, Any], issues: list[ValidationIssue]) -> None:
+    fields = candidate.get("fields", {})
+    if not isinstance(fields, dict):
+        issues.append(invalid_candidate_type("fields", "mapping"))
+        return
+    memory_type = candidate.get("type")
+    allowed_fields: set[str]
+    if memory_type == "command":
+        allowed_fields = COMMAND_FIELDS
+    elif memory_type in {"routine", "skill"}:
+        allowed_fields = ROUTINE_SKILL_FIELDS
+    else:
+        allowed_fields = set()
+    for field_name in sorted(set(fields) - allowed_fields):
+        issues.append(
+            ValidationIssue(
+                code="unknown_field",
+                message=f"{memory_type} memory does not allow field {field_name}",
+                field=f"fields.{field_name}",
+            )
+        )
+    if memory_type == "command":
+        for field_name, value in fields.items():
+            if not isinstance(value, str):
+                issues.append(invalid_candidate_type(f"fields.{field_name}", "string"))
+    elif memory_type in {"routine", "skill"}:
+        for field_name in ("steps", "prerequisites"):
+            if field_name in fields and not is_string_list(fields[field_name]):
+                issues.append(invalid_candidate_type(f"fields.{field_name}", "list of strings"))
+        if "verify" in fields and not isinstance(fields["verify"], str):
+            issues.append(invalid_candidate_type("fields.verify", "string"))
+
+
+def invalid_candidate_type(field_name: str, expected: str) -> ValidationIssue:
+    return ValidationIssue(
+        code="invalid_field_type",
+        message=f"{field_name} must be {expected}",
+        field=field_name,
+    )
+
+
+def is_string_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def valid_evidence_candidate(value: Any) -> bool:
+    if not isinstance(value, list) or not value:
+        return False
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            continue
+        if isinstance(item, dict) and any(str(item_value).strip() for item_value in item.values()):
+            continue
+        return False
+    return True
+
+
+def valid_ulid_candidate_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(item, str) and ULID_RE.fullmatch(item) for item in value)
+
+
+def memory_path_for_frontmatter(repo_root: Path, frontmatter: dict[str, Any]) -> Path:
+    slug = slugify(frontmatter["title"])
+    return repo_root / ".agents/memory" / frontmatter["type"] / f"{frontmatter['id']}-{slug}.md"
+
+
+def slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    slug = re.sub(r"-{2,}", "-", slug)
+    return slug[:80].strip("-") or "memory"
+
+
+def format_timestamp(value: datetime) -> str:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def render_memory_text(frontmatter: dict[str, Any], body: str) -> str:
+    lines = ["---"]
+    for key, value in frontmatter.items():
+        append_yaml(lines, key, value, 0)
+    lines.append("---")
+    lines.append(normalize_body(body).rstrip())
+    lines.append("")
+    return "\n".join(lines)
+
+
+def append_yaml(lines: list[str], key: str, value: Any, indent: int) -> None:
+    prefix = " " * indent
+    if isinstance(value, dict):
+        lines.append(f"{prefix}{key}:")
+        for child_key, child_value in value.items():
+            append_yaml(lines, child_key, child_value, indent + 2)
+    elif isinstance(value, list):
+        if not value:
+            lines.append(f"{prefix}{key}: []")
+            return
+        lines.append(f"{prefix}{key}:")
+        for item in value:
+            item_prefix = " " * (indent + 2)
+            if isinstance(item, dict):
+                lines.append(f"{item_prefix}-")
+                for child_key, child_value in item.items():
+                    append_yaml(lines, child_key, child_value, indent + 4)
+            else:
+                lines.append(f"{item_prefix}- {json.dumps(item, ensure_ascii=False)}")
+    elif isinstance(value, bool):
+        lines.append(f"{prefix}{key}: {'true' if value else 'false'}")
+    else:
+        lines.append(f"{prefix}{key}: {json.dumps(value, ensure_ascii=False)}")
 
 
 def validate_memory(document: MemoryDocument) -> ValidationResult:
