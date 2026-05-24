@@ -130,3 +130,8 @@
 - Brick setup should configure local Git with `merge.brick-memory.name` set to `Brick memory merge driver`.
 - Brick setup should configure local Git with `merge.brick-memory.driver` set to `./brick merge-driver %O %A %B %L %P`.
 - The curlable installer should support `BRICK_SOURCE_BASE_URL` as the raw source base URL for fetching Brick release files.
+- Brick v1 should use a dependency-free constrained YAML frontmatter parser for canonical memory files, supporting the schema shapes Brick writes and validates rather than arbitrary YAML.
+- Brick v1 `content_hash` should be `sha256:` plus the SHA-256 of canonical JSON containing sorted frontmatter with `content_hash` and `updated_at` removed plus a normalized Markdown body.
+- Brick v1 secret detection should start with conservative stdlib regex checks for private-key blocks and likely key/token/secret/password assignments.
+- Brick v1 PII detection should start with conservative stdlib regex checks for emails, phone-like numbers, address-like phrases, and two-word human-name-like phrases, with `confirm_public: true` as the validation escape hatch.
+- `brick memory validate` should return JSON by default with per-file validation results and exit nonzero when any memory is invalid or blocked.
