@@ -123,3 +123,5 @@
 - If a repository already has `AGENTS.md`, Brick setup should back it up and write a new `AGENTS.md` that makes user-reviewed merging of the backup and Brick instructions the first agent task.
 - The proposed conflict report JSON schema in `ROADMAP.md` is approved as the v1 baseline.
 - The licensing model should keep Brick available to indie users and provide a clear path for indie projects that use Brick and later become commercial.
+- Brick should be free for everyone, including companies, with no commercial licensing gate; the user expects to rely on donations rather than restricting commercial use.
+- Brick should use a permissive free-for-all license; Apache-2.0 is the preferred v1 license because it permits broad commercial use while including an explicit patent grant.
