@@ -38,11 +38,13 @@ well enough for another agent to continue from the repository alone.
   script published by Brick.
 - [x] `brick setup` owns local agent-instruction installation and conservative
   `AGENTS.md` handling.
-- [x] The license strategy must preserve the option to capitalize on company
-  and commercial use.
+- [x] Brick is free for everyone, including companies and commercial projects.
 - [x] The licensing model must keep Brick available to indie users.
 - [x] Indie projects that use Brick and later become commercial should have a
-  clear compliance or commercial-license path.
+  the same permissive usage rights.
+- [x] Brick monetization is donation-supported, not based on commercial license
+  gates.
+- [x] V1 uses Apache-2.0 as the free-for-all permissive license.
 
 ## Must-Win Workflow
 
@@ -489,6 +491,8 @@ Goal: capture product decisions in a form that can drive implementation.
 - [x] Capture initial repo layout.
 - [x] Capture initial safety policy.
 - [x] Capture initial merge-driver policy.
+- [x] Choose Apache-2.0 as the v1 license.
+- [x] Add Apache-2.0 `LICENSE`.
 - [ ] Keep the roadmap checklist updated as implementation discovers concrete
   details.
 
@@ -656,7 +660,7 @@ Exit criteria:
 
 ## Remaining Implementation Decisions
 
-- [ ] Choose exact license or dual-license/commercialization model.
+- [x] Choose exact license: Apache-2.0.
 - [ ] Define exact local SQLite schema.
 - [ ] Define exact content hash canonicalization algorithm.
 - [ ] Choose exact secret detector implementation.
