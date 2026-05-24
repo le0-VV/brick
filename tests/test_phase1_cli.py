@@ -90,6 +90,25 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertEqual(payload["status"], "ok")
         self.assertEqual(payload["repo_root"], str(repo.resolve()))
 
+    def test_cli_setup_emits_readable_text_by_default(self) -> None:
+        repo = self.make_repo()
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / ".agents/brick/bin/brick"),
+                "setup",
+                "--skip-venv",
+            ],
+            cwd=repo,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+        )
+
+        self.assertIn("Brick setup complete.", completed.stdout)
+        self.assertIn("- ", completed.stdout)
+
     def test_cli_version(self) -> None:
         completed = subprocess.run(
             [sys.executable, str(ROOT / ".agents/brick/bin/brick"), "--version"],
@@ -114,6 +133,8 @@ class Phase1SetupTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "ok")
         self.assertTrue((repo / ".agents/brick/bin/brick").is_file())
+        self.assertTrue((repo / ".agents/brick/AGENT_USAGE.md").is_file())
+        self.assertTrue((repo / ".agents/brick/examples/memory-add/decision.json").is_file())
         self.assertTrue((repo / "brick").is_symlink())
         self.assertIn(cli.BRICK_AGENT_MARKER, (repo / "AGENTS.md").read_text())
 

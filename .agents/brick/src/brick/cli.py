@@ -157,6 +157,8 @@ def brick_agents_text(has_backup: bool) -> str:
         f"{BRICK_AGENT_MARKER}\n\n"
         "## Brick Memory\n\n"
         f"{first_task}"
+        "- Read `.agents/brick/AGENT_USAGE.md` for Brick command workflows and "
+        "example memory payloads.\n"
         "- Run `./brick setup` if Brick tooling, generated directories, or Git "
         "configuration appear incomplete.\n"
         "- Search memory before relying on assumptions: `./brick memory search "

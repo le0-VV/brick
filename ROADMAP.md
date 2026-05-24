@@ -323,7 +323,7 @@ Input and output rules:
 - [x] Make `brick memory validate` return JSON by default.
 - [x] Make `brick conflicts list` return JSON by default.
 - [x] Make `brick conflicts export` return JSON by default.
-- [ ] Allow `brick setup` to print readable text by default.
+- [x] Allow `brick setup` to print readable text by default.
 - [x] Allow `brick rebuild` to print readable text by default.
 - [x] Add `--pretty` for JSON-oriented commands in v1.
 
@@ -631,23 +631,23 @@ Exit criteria:
 
 Goal: make Brick self-explanatory to agents working in a repo.
 
-- [ ] Add agent-facing usage instructions.
+- [x] Add agent-facing usage instructions.
 - [x] Add Brick `AGENTS.md` template.
 - [x] Add `AGENTS.md` backup flow for repositories with existing agent
   instructions.
 - [x] Add first-task instruction requiring user-reviewed merge of backed-up
   instructions and Brick instructions.
-- [ ] Add example memory files for each core type.
-- [ ] Add example `brick memory add` payloads.
-- [ ] Add blocked unsafe-memory example.
-- [ ] Add example search workflow.
-- [ ] Add example conflict workflow.
-- [ ] Add README quickstart.
+- [x] Add example memory files for each core type.
+- [x] Add example `brick memory add` payloads.
+- [x] Add blocked unsafe-memory example.
+- [x] Add example search workflow.
+- [x] Add example conflict workflow.
+- [x] Add README quickstart.
 
 Exit criteria:
 
-- [ ] A new agent can discover how to use Brick from repo files.
-- [ ] Contributors can fork, run setup, search memory, and add memory.
+- [x] A new agent can discover how to use Brick from repo files.
+- [x] Contributors can fork, run setup, search memory, and add memory.
 
 ### Phase 7 - Quality And Regression Tests
 
@@ -661,6 +661,7 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 - [x] Add rebuild/search tests.
 - [x] Add embedding endpoint and hybrid search tests.
 - [x] Add merge-driver fixture tests.
+- [x] Add docs and example workflow tests.
 - [ ] Add redaction/tombstone tests.
 
 Exit criteria:
