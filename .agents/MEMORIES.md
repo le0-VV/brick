@@ -19,6 +19,8 @@
 - Brick should not have a separate `topics` field in v1; topic-like labeling should use `tags`.
 - The `type` field should drive schema validation, rendering, and agent behavior, while `tags` should support discovery and semantic/human labeling.
 - Memory IDs should use plain ULIDs without a `mem_` prefix.
+- Every memory should require a `status` frontmatter field with allowed values `active`, `superseded`, `tombstone`, and `redacted`.
+- Brick should not allow `draft` as a committed memory status; candidates should stay outside canonical memory until valid.
 - Every memory should require `created_at` and `updated_at` frontmatter fields.
 - Every memory should require a stable `content_hash` metadata field.
 - `command`, `routine`, and `skill` memory types should have lightweight structured fields rather than keeping all type-specific detail only in the Markdown body.
