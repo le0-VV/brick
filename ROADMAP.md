@@ -34,6 +34,12 @@ well enough for another agent to continue from the repository alone.
 - [x] V1 assumes Python is available for agentic coding workflows.
 - [x] V1 manages its own dependencies instead of depending on the host project
   environment.
+- [x] Repositories can be initialized for Brick through a curlable installer
+  script published by Brick.
+- [x] `brick setup` owns local agent-instruction installation and conservative
+  `AGENTS.md` handling.
+- [x] The license strategy must preserve the option to capitalize on company
+  and commercial use.
 
 ## Must-Win Workflow
 
@@ -60,8 +66,13 @@ well enough for another agent to continue from the repository alone.
 
 - [ ] Create `.agents/brick/pyproject.toml`.
 - [ ] Create one setup entrypoint under `.agents/brick/`.
+- [ ] Create `.agents/brick/bin/brick` as the actual executable.
+- [ ] Create a repo-root `brick` symlink that uses a relative path to
+  `.agents/brick/bin/brick`.
+- [ ] Create `.agents/brick/.venv/` as Brick's owned virtual environment.
 - [ ] Create `.agents/brick/index/` for generated index state.
 - [ ] Create `.agents/brick/conflicts/` for generated conflict reports.
+- [ ] Gitignore `.agents/brick/.venv/`.
 - [ ] Gitignore `.agents/brick/index/`.
 - [ ] Gitignore `.agents/brick/conflicts/`.
 - [ ] Create `.agents/memory/` as canonical memory root.
@@ -74,7 +85,10 @@ Target structure:
 .agents/
   brick/
     pyproject.toml
+    bin/
+      brick
     setup.py or setup.sh
+    .venv/             # generated, gitignored
     index/              # generated, gitignored
     conflicts/          # generated, gitignored
   memory/
@@ -172,6 +186,13 @@ Trust policy:
 - [ ] If a later explicit confidence field is added, prevent it from becoming a
   way to store weak or unsupported memory as durable project context.
 
+Content hash policy:
+
+- [x] Calculate `content_hash` from normalized memory content.
+- [x] Exclude `content_hash` itself from the hash input.
+- [x] Exclude `updated_at` from the hash input.
+- [ ] Define the exact canonicalization algorithm before implementation.
+
 ## Type-Specific Schema Checklist
 
 - [ ] Support lightweight structured fields for `command` memories.
@@ -243,6 +264,9 @@ Secret and PII checks:
 - [ ] Block possible emails until explicitly confirmed.
 - [ ] Block possible phone numbers until explicitly confirmed.
 - [ ] Block possible addresses until explicitly confirmed.
+- [ ] Support candidate-level `confirm_public: true` JSON confirmation.
+- [ ] Require explicit confirmation before saving public human names.
+- [ ] Require explicit confirmation before saving public email addresses.
 - [ ] Ensure committed memory is safe for the repository's intended audience.
 
 Redaction:
@@ -266,6 +290,12 @@ Blocked candidate response shape:
 ```
 
 ## CLI Checklist
+
+Entrypoint rules:
+
+- [ ] Put the actual executable at `.agents/brick/bin/brick`.
+- [ ] Expose a repo-root `brick` symlink using a relative path.
+- [x] Use Python stdlib `argparse` for the v1 CLI.
 
 Command surface:
 
@@ -292,6 +322,35 @@ Input and output rules:
 - [ ] Allow `brick rebuild` to print readable text by default.
 - [ ] Add `--pretty` for JSON-oriented commands in v1.
 
+Proposed `brick memory add` input contract:
+
+```json
+{
+  "title": "Decision to use hybrid retrieval",
+  "type": "decision",
+  "tags": ["retrieval", "architecture"],
+  "body": "Markdown body for the memory.",
+  "source": {
+    "kind": "conversation",
+    "ref": "chat thread, commit, file, issue, or manual note"
+  },
+  "evidence": [
+    {
+      "kind": "quote",
+      "text": "Quoted user text or concrete artifact reference."
+    }
+  ],
+  "confirm_public": false,
+  "supersedes": [],
+  "related": [],
+  "fields": {}
+}
+```
+
+- [ ] Finalize the `brick memory add` JSON input contract.
+- [ ] Map `fields` into type-specific frontmatter keys after validation.
+- [ ] Reject unknown top-level fields unless a compatibility policy is added.
+
 ## Dependency Checklist
 
 - [ ] Assume Python is available.
@@ -299,6 +358,7 @@ Input and output rules:
 - [ ] Fall back to `pip`.
 - [ ] Keep Brick dependencies under `.agents/brick/pyproject.toml`.
 - [ ] Use a Brick-owned virtual environment.
+- [ ] Put the Brick-owned virtual environment at `.agents/brick/.venv/`.
 - [ ] Do not use the host project's main virtual environment.
 - [ ] Provide one setup entrypoint.
 - [ ] Make Brick commands run setup or resolve dependencies when possible.
@@ -322,6 +382,8 @@ Embedding:
 
 - [ ] Use `BRICK_EMBEDDING_URL` as the standard embedding endpoint environment
   variable.
+- [x] Use an OpenAI-compatible embedding endpoint contract for v1.
+- [ ] Define model configuration, likely `BRICK_EMBEDDING_MODEL`.
 - [ ] Support a local system-wide embedding service.
 - [ ] Support API-backed embeddings.
 - [ ] Fall back to keyword search when no embedding endpoint or API is
@@ -346,6 +408,7 @@ Core merge behavior:
 
 - [ ] Implement `brick merge-driver`.
 - [ ] Add `.gitattributes` guidance for memory files.
+- [ ] Have `brick setup` install or configure the merge driver.
 - [ ] Auto-merge exact duplicate memory IDs.
 - [ ] Auto-merge exact duplicate content.
 - [ ] Do not silently merge semantically similar memories.
@@ -366,6 +429,50 @@ Conflict reports:
 - [ ] Implement `brick conflicts list`.
 - [ ] Implement `brick conflicts export <id>`.
 - [ ] Make conflict reports exportable for PR discussion or review.
+- [ ] Finalize the conflict report JSON schema before implementation.
+
+Proposed conflict report shape:
+
+```json
+{
+  "schema_version": 1,
+  "id": "conflict-01JX3Y7Q8M9N2P4R6S8T0V1W",
+  "created_at": "2026-05-24T00:00:00Z",
+  "kind": "semantic_similarity",
+  "severity": "review_required",
+  "merge": {
+    "base_ref": "base",
+    "ours_ref": "ours",
+    "theirs_ref": "theirs"
+  },
+  "memories": [
+    {
+      "side": "ours",
+      "id": "01JX3Y1Y8H6TR4Y3Q38K1W9P2A",
+      "path": ".agents/memory/decision/example.md",
+      "title": "Example memory",
+      "type": "decision",
+      "status": "active",
+      "content_hash": "sha256:..."
+    }
+  ],
+  "similarity": {
+    "method": "embedding_or_keyword",
+    "score": 0.91
+  },
+  "conflicts": [
+    {
+      "field": "body",
+      "reason": "semantically_similar_memory"
+    }
+  ],
+  "appendable_unions": {
+    "evidence": []
+  },
+  "proposed_resolution": null,
+  "required_action": "human_review"
+}
+```
 
 ## Phase Roadmap Checklist
 
@@ -394,11 +501,17 @@ Goal: make Brick runnable from a cloned repo.
 
 - [ ] Add `.agents/brick/pyproject.toml`.
 - [ ] Add setup entrypoint.
+- [ ] Add `.agents/brick/bin/brick`.
+- [ ] Add repo-root relative `brick` symlink.
 - [ ] Add Brick-owned venv handling.
+- [ ] Put Brick-owned venv state under `.agents/brick/.venv/`.
 - [ ] Implement `brick setup`.
 - [ ] Add basic CLI argument parser.
+- [ ] Use Python stdlib `argparse`.
+- [ ] Add curlable repository bootstrap script.
 - [ ] Add gitignore entries for generated index state.
 - [ ] Add gitignore entries for generated conflict reports.
+- [ ] Add gitignore entry for `.agents/brick/.venv/`.
 
 Exit criteria:
 
@@ -416,8 +529,10 @@ Goal: make canonical Markdown memory safe and consistent.
 - [ ] Implement ULID generation.
 - [ ] Implement ULID validation.
 - [ ] Implement content hash calculation.
+- [ ] Exclude `content_hash` and `updated_at` from hash input.
 - [ ] Implement secret scanner.
 - [ ] Implement PII block-until-confirmed flow.
+- [ ] Implement `confirm_public` handling in JSON candidates.
 - [ ] Implement structured validation output.
 - [ ] Implement `brick memory validate`.
 
@@ -434,6 +549,7 @@ Goal: let agents add memory without writing files directly.
 
 - [ ] Implement `brick memory add`.
 - [ ] Define JSON stdin input contract.
+- [ ] Support the v1 candidate JSON shape documented in this roadmap.
 - [ ] Implement slug generation.
 - [ ] Implement type-folder file creation.
 - [ ] Implement type-specific field validation.
@@ -460,6 +576,7 @@ Goal: give agents useful retrieval immediately, even without embeddings.
 - [ ] Implement keyword fallback search.
 - [ ] Implement optional embedding endpoint integration through
   `BRICK_EMBEDDING_URL`.
+- [ ] Implement OpenAI-compatible embedding requests.
 - [ ] Implement `brick memory search`.
 - [ ] Implement retrieval context package JSON.
 
@@ -476,6 +593,7 @@ Goal: make fork/upstream memory collaboration safe.
 
 - [ ] Implement `brick merge-driver`.
 - [ ] Add `.gitattributes` guidance.
+- [ ] Configure the merge driver from `brick setup`.
 - [ ] Implement exact duplicate auto-merge.
 - [ ] Implement structured frontmatter merge.
 - [ ] Implement evidence union behavior.
@@ -496,8 +614,14 @@ Exit criteria:
 Goal: make Brick self-explanatory to agents working in a repo.
 
 - [ ] Add agent-facing usage instructions.
+- [ ] Add Brick `AGENTS.md` template.
+- [ ] Add `AGENTS.md` backup flow for repositories with existing agent
+  instructions.
+- [ ] Add first-task instruction requiring user-reviewed merge of backed-up
+  instructions and Brick instructions.
 - [ ] Add example memory files for each core type.
 - [ ] Add example `brick memory add` payloads.
+- [ ] Add blocked unsafe-memory example.
 - [ ] Add example search workflow.
 - [ ] Add example conflict workflow.
 - [ ] Add README quickstart.
@@ -529,14 +653,18 @@ Exit criteria:
 
 ## Remaining Implementation Decisions
 
-- [ ] Choose exact Python CLI framework, if any.
+- [ ] Choose exact license or dual-license/commercialization model.
 - [ ] Define exact local SQLite schema.
 - [ ] Define exact content hash canonicalization algorithm.
 - [ ] Choose exact secret detector implementation.
 - [ ] Choose exact PII detector implementation.
-- [ ] Define exact embedding endpoint request/response contract.
-- [ ] Define exact conflict report JSON schema.
-- [ ] Define exact `.gitattributes` merge-driver installation flow.
+- [ ] Define exact OpenAI-compatible embedding endpoint request/response
+  details.
+- [ ] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
+- [ ] Approve or revise the proposed conflict report JSON schema.
+- [ ] Define exact `.gitattributes` and local Git config mutations performed by
+  `brick setup`.
+- [ ] Define exact `AGENTS.md` backup filename and merge-instruction text.
 
 ## V1 Non-Goals
 
