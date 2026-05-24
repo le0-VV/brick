@@ -167,3 +167,4 @@
 - The first v1 merge-driver implementation should auto-resolve only exact identical outputs and fast-forward cases where one side is unchanged from base.
 - When the merge driver cannot prove a safe exact or fast-forward resolution, it should write a conflict report and exit nonzero without silently editing the canonical memory.
 - Merge-driver conflict reports should use the accepted v1 report shape with `required_action: human_review`; semantic similarity detection and structured frontmatter merging can be added after the safe baseline.
+- `brick memory redact` should read a JSON object from stdin, require a canonical memory `path`, a non-empty `redactions` list of exact text values, and a human-readable `reason`, replace every target text with `[REDACTED]`, mark the memory `status: redacted`, append redaction evidence, recompute `updated_at` and `content_hash`, validate before writing, and rebuild the local index by default.
