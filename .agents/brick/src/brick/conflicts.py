@@ -198,21 +198,33 @@ def structured_memory_merge(repo_root: Path, args: MergeDriverArgs) -> MergeDriv
     if len(memory_ids) != 1 or None in memory_ids:
         return None
 
-    merged_body, body_conflict = merge_text_field("body", base.body, ours.body, theirs.body)
-    if body_conflict is not None:
-        report = create_merge_conflict_report(repo_root, args, conflicts=[body_conflict])
-        return MergeDriverResult(status="conflict", action="human_review", report=report)
-
     merged_frontmatter, merge_conflicts, appendable_unions = merge_frontmatter(
         base.frontmatter,
         ours.frontmatter,
         theirs.frontmatter,
     )
-    if merge_conflicts:
+    merged_body, body_conflict = merge_text_field("body", base.body, ours.body, theirs.body)
+    if body_conflict is not None and not merge_conflicts:
+        merged_frontmatter["content_hash"] = stale_content_hash(base, ours, theirs)
+        conflict_body = git_style_body_conflict(args, ours.body, theirs.body)
+        conflict_text = render_memory_text(merged_frontmatter, conflict_body)
+        args.ours.write_text(conflict_text, encoding="utf-8")
         report = create_merge_conflict_report(
             repo_root,
             args,
-            conflicts=merge_conflicts,
+            conflicts=[body_conflict],
+            appendable_unions=appendable_unions,
+        )
+        return MergeDriverResult(status="conflict", action="human_review", report=report)
+
+    if merge_conflicts:
+        report_conflicts = merge_conflicts
+        if body_conflict is not None:
+            report_conflicts = [body_conflict, *merge_conflicts]
+        report = create_merge_conflict_report(
+            repo_root,
+            args,
+            conflicts=report_conflicts,
             appendable_unions=appendable_unions,
         )
         return MergeDriverResult(status="conflict", action="human_review", report=report)
@@ -300,6 +312,39 @@ def merge_text_field(
         "field": field_name,
         "reason": "both_sides_changed",
     }
+
+
+def git_style_body_conflict(args: MergeDriverArgs, ours: str, theirs: str) -> str:
+    size = conflict_marker_size(args.marker_size)
+    return (
+        f"{'<' * size} ours\n"
+        f"{ensure_final_newline(ours)}"
+        f"{'=' * size}\n"
+        f"{ensure_final_newline(theirs)}"
+        f"{'>' * size} theirs\n"
+    )
+
+
+def conflict_marker_size(raw_size: str | None) -> int:
+    if raw_size is None:
+        return 7
+    try:
+        size = int(raw_size)
+    except ValueError:
+        return 7
+    return max(size, 7)
+
+
+def ensure_final_newline(value: str) -> str:
+    return value if value.endswith("\n") else f"{value}\n"
+
+
+def stale_content_hash(*documents: MemoryDocument) -> str:
+    for document in documents:
+        value = document.frontmatter.get("content_hash")
+        if isinstance(value, str):
+            return value
+    return "sha256:" + "0" * 64
 
 
 def lists_available(*values: Any) -> bool:

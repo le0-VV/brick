@@ -184,7 +184,20 @@ class Phase5MergeConflictTests(unittest.TestCase):
 
         self.assertEqual(completed.returncode, 1)
         self.assertIn("human review", completed.stderr)
-        self.assertEqual(ours.read_text(encoding="utf-8"), ours_text)
+        conflicted_text = ours.read_text(encoding="utf-8")
+        self.assertIn("<<<<<<< ours", conflicted_text)
+        self.assertIn("=======", conflicted_text)
+        self.assertIn(">>>>>>> theirs", conflicted_text)
+        self.assertIn("Ours changed body.", conflicted_text)
+        self.assertIn("Theirs changed body.", conflicted_text)
+        conflicted_document = memory.load_memory(ours)
+        self.assertNotEqual(
+            conflicted_document.frontmatter["content_hash"],
+            memory.compute_content_hash(
+                conflicted_document.frontmatter,
+                conflicted_document.body,
+            ),
+        )
 
         listed = run_cli(repo, "conflicts", "list")
         listed_payload = json.loads(listed.stdout)
@@ -198,6 +211,7 @@ class Phase5MergeConflictTests(unittest.TestCase):
         self.assertEqual(report["kind"], "memory_merge_conflict")
         self.assertEqual(report["merge"]["path"], ".agents/memory/decision/example.md")
         self.assertEqual({entry["side"] for entry in report["memories"]}, {"base", "ours", "theirs"})
+        self.assertIn({"field": "body", "reason": "both_sides_changed"}, report["conflicts"])
 
     def test_merge_driver_structurally_merges_one_sided_frontmatter_and_body_changes(self) -> None:
         repo = make_repo(self)

@@ -433,7 +433,7 @@ Core merge behavior:
 - [ ] Allow agents to propose merged memories.
 - [x] Require human acceptance before Brick writes a final merged memory.
 - [x] Merge deterministic frontmatter fields automatically when non-conflicting.
-- [ ] Use normal Git-style text merge behavior for Markdown body edits.
+- [x] Use normal Git-style text merge behavior for Markdown body edits.
 - [x] Block when the same structured frontmatter field changes differently on
   both sides.
 - [x] Create a conflict report when structured frontmatter conflicts.
