@@ -75,6 +75,9 @@
 - Brick should keep memory operations under the `brick memory` namespace, such as `brick memory add`, `brick memory validate`, and `brick memory search`.
 - `brick memory add` should accept JSON input by default and reject non-JSON input instead of requiring a `--json` flag.
 - `brick memory add` should read JSON from stdin by default.
+- Agent-facing Brick commands should return JSON by default, including `brick memory add`, `brick memory search`, `brick memory validate`, `brick conflicts list`, and `brick conflicts export`.
+- Human/convenience commands such as `brick setup` and `brick rebuild` may print readable text by default.
+- Brick v1 should include a `--pretty` option for human-readable output on JSON-oriented commands.
 - Retrieved context packages should include summary, source path, confidence, status, evidence, and a full-text link.
 - Upstream memory updates should flow to forks through normal Git commits; when a fork pulls, merges, or rebases from upstream, it receives the new memory files the same way it receives code changes.
 - The working product name is Brick.
