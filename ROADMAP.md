@@ -118,22 +118,22 @@ Filename examples:
 
 ## Memory Schema Checklist
 
-- [ ] Store every memory as one Markdown file with YAML frontmatter.
-- [ ] Allow memory bodies to be freeform Markdown.
-- [ ] Do not require a duplicate `# Title` heading in the Markdown body.
-- [ ] Require `id`.
-- [ ] Require `title`.
-- [ ] Require `type`.
-- [ ] Require `status`.
-- [ ] Require `tags`.
-- [ ] Require `created_at`.
-- [ ] Require `updated_at`.
-- [ ] Require `content_hash`.
-- [ ] Require `source.kind`.
-- [ ] Require at least one `evidence` item.
-- [ ] Allow optional `supersedes`.
-- [ ] Allow optional `related`.
-- [ ] Validate `supersedes` and `related` entries as memory ULIDs when present.
+- [x] Store every memory as one Markdown file with YAML frontmatter.
+- [x] Allow memory bodies to be freeform Markdown.
+- [x] Do not require a duplicate `# Title` heading in the Markdown body.
+- [x] Require `id`.
+- [x] Require `title`.
+- [x] Require `type`.
+- [x] Require `status`.
+- [x] Require `tags`.
+- [x] Require `created_at`.
+- [x] Require `updated_at`.
+- [x] Require `content_hash`.
+- [x] Require `source.kind`.
+- [x] Require at least one `evidence` item.
+- [x] Allow optional `supersedes`.
+- [x] Allow optional `related`.
+- [x] Validate `supersedes` and `related` entries as memory ULIDs when present.
 
 Required frontmatter shape:
 
@@ -196,7 +196,7 @@ Content hash policy:
 - [x] Calculate `content_hash` from normalized memory content.
 - [x] Exclude `content_hash` itself from the hash input.
 - [x] Exclude `updated_at` from the hash input.
-- [ ] Define the exact canonicalization algorithm before implementation.
+- [x] Define the exact canonicalization algorithm before implementation.
 
 ## Type-Specific Schema Checklist
 
@@ -243,36 +243,36 @@ verify: "CI passes and release artifact exists."
 
 ## Validation And Safety Checklist
 
-- [ ] Parse YAML frontmatter.
-- [ ] Parse Markdown body.
-- [ ] Require all core schema fields.
-- [ ] Validate plain ULID IDs without a `mem_` prefix.
-- [ ] Validate `type`.
-- [ ] Validate `status`.
-- [ ] Validate timestamps.
-- [ ] Validate `content_hash`.
-- [ ] Require `source.kind`.
-- [ ] Require at least one `evidence` item.
-- [ ] Reject memories without enough evidence.
-- [ ] Reject unsupported durable memory.
-- [ ] Reject low-confidence durable memory.
+- [x] Parse YAML frontmatter.
+- [x] Parse Markdown body.
+- [x] Require all core schema fields.
+- [x] Validate plain ULID IDs without a `mem_` prefix.
+- [x] Validate `type`.
+- [x] Validate `status`.
+- [x] Validate timestamps.
+- [x] Validate `content_hash`.
+- [x] Require `source.kind`.
+- [x] Require at least one `evidence` item.
+- [x] Reject memories without enough evidence.
+- [x] Reject unsupported durable memory.
+- [x] Reject low-confidence durable memory.
 - [ ] Reject non-JSON input to `brick memory add`.
-- [ ] Return structured JSON for validation failures.
+- [x] Return structured JSON for validation failures.
 
 Secret and PII checks:
 
-- [ ] Block obvious API keys before writing memory.
-- [ ] Block private keys before writing memory.
-- [ ] Block tokens before writing memory.
-- [ ] Block passwords before writing memory.
-- [ ] Block possible names until explicitly confirmed.
-- [ ] Block possible emails until explicitly confirmed.
-- [ ] Block possible phone numbers until explicitly confirmed.
-- [ ] Block possible addresses until explicitly confirmed.
-- [ ] Support candidate-level `confirm_public: true` JSON confirmation.
-- [ ] Require explicit confirmation before saving public human names.
-- [ ] Require explicit confirmation before saving public email addresses.
-- [ ] Ensure committed memory is safe for the repository's intended audience.
+- [x] Block obvious API keys before writing memory.
+- [x] Block private keys before writing memory.
+- [x] Block tokens before writing memory.
+- [x] Block passwords before writing memory.
+- [x] Block possible names until explicitly confirmed.
+- [x] Block possible emails until explicitly confirmed.
+- [x] Block possible phone numbers until explicitly confirmed.
+- [x] Block possible addresses until explicitly confirmed.
+- [x] Support candidate-level `confirm_public: true` JSON confirmation.
+- [x] Require explicit confirmation before saving public human names.
+- [x] Require explicit confirmation before saving public email addresses.
+- [x] Ensure committed memory is safe for the repository's intended audience.
 
 Redaction:
 
@@ -306,7 +306,7 @@ Command surface:
 
 - [x] Implement `brick setup`.
 - [ ] Implement `brick memory add`.
-- [ ] Implement `brick memory validate [path]`.
+- [x] Implement `brick memory validate [path]`.
 - [ ] Implement `brick memory search "query"`.
 - [ ] Implement `brick rebuild`.
 - [ ] Implement `brick merge-driver ...`.
@@ -320,7 +320,7 @@ Input and output rules:
 - [ ] Make `brick memory add` reject non-JSON input.
 - [ ] Make `brick memory add` return JSON by default.
 - [ ] Make `brick memory search` return JSON by default.
-- [ ] Make `brick memory validate` return JSON by default.
+- [x] Make `brick memory validate` return JSON by default.
 - [ ] Make `brick conflicts list` return JSON by default.
 - [ ] Make `brick conflicts export` return JSON by default.
 - [ ] Allow `brick setup` to print readable text by default.
@@ -530,25 +530,25 @@ Exit criteria:
 
 Goal: make canonical Markdown memory safe and consistent.
 
-- [ ] Implement YAML frontmatter parser.
-- [ ] Implement Markdown memory loader.
-- [ ] Implement schema validator.
-- [ ] Implement ULID generation.
-- [ ] Implement ULID validation.
-- [ ] Implement content hash calculation.
-- [ ] Exclude `content_hash` and `updated_at` from hash input.
-- [ ] Implement secret scanner.
-- [ ] Implement PII block-until-confirmed flow.
-- [ ] Implement `confirm_public` handling in JSON candidates.
-- [ ] Implement structured validation output.
-- [ ] Implement `brick memory validate`.
+- [x] Implement YAML frontmatter parser.
+- [x] Implement Markdown memory loader.
+- [x] Implement schema validator.
+- [x] Implement ULID generation.
+- [x] Implement ULID validation.
+- [x] Implement content hash calculation.
+- [x] Exclude `content_hash` and `updated_at` from hash input.
+- [x] Implement secret scanner.
+- [x] Implement PII block-until-confirmed flow.
+- [x] Implement `confirm_public` handling in JSON candidates.
+- [x] Implement structured validation output.
+- [x] Implement `brick memory validate`.
 
 Exit criteria:
 
-- [ ] Invalid memory is rejected with machine-readable reasons.
-- [ ] Missing evidence is rejected.
-- [ ] Obvious secrets are blocked.
-- [ ] Possible PII is blocked until confirmed.
+- [x] Invalid memory is rejected with machine-readable reasons.
+- [x] Missing evidence is rejected.
+- [x] Obvious secrets are blocked.
+- [x] Possible PII is blocked until confirmed.
 
 ### Phase 3 - Memory Write Path
 
@@ -642,11 +642,11 @@ Exit criteria:
 
 Goal: keep Brick from corrupting or poisoning repo memory.
 
-- [ ] Add schema validation tests.
-- [ ] Add secret scanner tests.
-- [ ] Add PII scanner tests.
-- [ ] Add hash stability tests.
-- [ ] Add CLI JSON contract tests.
+- [x] Add schema validation tests.
+- [x] Add secret scanner tests.
+- [x] Add PII scanner tests.
+- [x] Add hash stability tests.
+- [x] Add CLI JSON contract tests.
 - [ ] Add rebuild/search tests.
 - [ ] Add merge-driver fixture tests.
 - [ ] Add redaction/tombstone tests.
@@ -662,9 +662,9 @@ Exit criteria:
 
 - [x] Choose exact license: Apache-2.0.
 - [ ] Define exact local SQLite schema.
-- [ ] Define exact content hash canonicalization algorithm.
-- [ ] Choose exact secret detector implementation.
-- [ ] Choose exact PII detector implementation.
+- [x] Define exact content hash canonicalization algorithm.
+- [x] Choose exact secret detector implementation.
+- [x] Choose exact PII detector implementation.
 - [ ] Define exact OpenAI-compatible embedding endpoint request/response
   details.
 - [ ] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.

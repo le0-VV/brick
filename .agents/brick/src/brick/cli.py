@@ -12,6 +12,7 @@ from typing import Iterable, Sequence
 from venv import EnvBuilder
 
 from brick import __version__
+from brick.memory import MemoryParseError, discover_memory_files, validate_memory_paths
 
 
 GITIGNORE_ENTRIES = (
@@ -301,6 +302,31 @@ def cmd_stub(name: str):
     return _inner
 
 
+def cmd_memory_validate(args: argparse.Namespace) -> int:
+    try:
+        repo_root = find_repo_root()
+        paths = discover_memory_files(repo_root, args.path)
+    except (BrickError, MemoryParseError) as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+
+    results = validate_memory_paths(repo_root, paths)
+    status = "ok"
+    if any(result.status == "blocked" for result in results):
+        status = "blocked"
+    elif any(result.status == "invalid" for result in results):
+        status = "invalid"
+
+    emit_json(
+        {
+            "status": status,
+            "checked": len(results),
+            "results": [result.to_dict(repo_root) for result in results],
+        },
+        args.pretty,
+    )
+    return 0 if status == "ok" else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="brick")
     parser.add_argument("--version", action="store_true", help="show Brick version")
@@ -339,7 +365,7 @@ def build_parser() -> argparse.ArgumentParser:
     memory_validate = memory_subparsers.add_parser("validate", help="validate memory files")
     memory_validate.add_argument("path", nargs="?")
     memory_validate.add_argument("--pretty", action="store_true", help="pretty-print JSON")
-    memory_validate.set_defaults(func=cmd_stub("memory validate"))
+    memory_validate.set_defaults(func=cmd_memory_validate)
 
     memory_search = memory_subparsers.add_parser("search", help="search memory")
     memory_search.add_argument("query")

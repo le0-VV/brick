@@ -25,6 +25,7 @@ copy_from_checkout() {
   cp "$source_dir/.agents/brick/pyproject.toml" .agents/brick/pyproject.toml
   cp "$source_dir/.agents/brick/src/brick/__init__.py" .agents/brick/src/brick/__init__.py
   cp "$source_dir/.agents/brick/src/brick/cli.py" .agents/brick/src/brick/cli.py
+  cp "$source_dir/.agents/brick/src/brick/memory.py" .agents/brick/src/brick/memory.py
 }
 
 fetch_from_base_url() {
@@ -35,6 +36,7 @@ fetch_from_base_url() {
   curl -fsSL "$base_url/.agents/brick/pyproject.toml" -o .agents/brick/pyproject.toml
   curl -fsSL "$base_url/.agents/brick/src/brick/__init__.py" -o .agents/brick/src/brick/__init__.py
   curl -fsSL "$base_url/.agents/brick/src/brick/cli.py" -o .agents/brick/src/brick/cli.py
+  curl -fsSL "$base_url/.agents/brick/src/brick/memory.py" -o .agents/brick/src/brick/memory.py
 }
 
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || true)"
