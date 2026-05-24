@@ -12,6 +12,7 @@ from typing import Iterable, Sequence
 from venv import EnvBuilder
 
 from brick import __version__
+from brick.index import BrickIndexError, rebuild_index, search_index
 from brick.memory import (
     MemoryAddError,
     MemoryParseError,
@@ -308,6 +309,30 @@ def cmd_stub(name: str):
     return _inner
 
 
+def cmd_rebuild(args: argparse.Namespace) -> int:
+    try:
+        repo_root = find_repo_root()
+        result = rebuild_index(repo_root)
+    except BrickError as exc:
+        return emit_error(str(exc), pretty=args.pretty, as_json=args.json)
+    except BrickIndexError as exc:
+        if args.json:
+            emit_json(exc.to_dict(), args.pretty)
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        emit_json(result.to_dict(repo_root), args.pretty)
+        return 0
+
+    print("Brick index rebuilt.")
+    print(f"- index: {result.path.relative_to(repo_root)}")
+    print(f"- memories: {result.memory_count}")
+    print(f"- rebuilt_at: {result.rebuilt_at}")
+    return 0
+
+
 def cmd_memory_validate(args: argparse.Namespace) -> int:
     try:
         repo_root = find_repo_root()
@@ -390,6 +415,25 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_memory_search(args: argparse.Namespace) -> int:
+    try:
+        repo_root = find_repo_root()
+        payload = search_index(
+            repo_root,
+            args.query,
+            limit=args.limit,
+            include_superseded=args.include_superseded,
+        )
+    except BrickError as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+    except BrickIndexError as exc:
+        emit_json(exc.to_dict(), args.pretty)
+        return 1
+
+    emit_json(payload, args.pretty)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="brick")
     parser.add_argument("--version", action="store_true", help="show Brick version")
@@ -412,7 +456,9 @@ def build_parser() -> argparse.ArgumentParser:
     setup.set_defaults(func=cmd_setup)
 
     rebuild = subparsers.add_parser("rebuild", help="rebuild the local Brick index")
-    rebuild.set_defaults(func=cmd_stub("rebuild"))
+    rebuild.add_argument("--json", action="store_true", help="emit machine JSON")
+    rebuild.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    rebuild.set_defaults(func=cmd_rebuild)
 
     merge_driver = subparsers.add_parser("merge-driver", help="Git merge driver entrypoint")
     merge_driver.add_argument("merge_args", nargs=argparse.REMAINDER)
@@ -432,8 +478,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     memory_search = memory_subparsers.add_parser("search", help="search memory")
     memory_search.add_argument("query")
+    memory_search.add_argument("--limit", type=int, default=10, help="maximum number of results")
+    memory_search.add_argument(
+        "--include-superseded",
+        action="store_true",
+        help="include superseded memories in search results",
+    )
     memory_search.add_argument("--pretty", action="store_true", help="pretty-print JSON")
-    memory_search.set_defaults(func=cmd_stub("memory search"))
+    memory_search.set_defaults(func=cmd_memory_search)
 
     conflicts = subparsers.add_parser("conflicts", help="conflict report operations")
     conflicts_subparsers = conflicts.add_subparsers(dest="conflicts_command")

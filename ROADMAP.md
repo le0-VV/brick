@@ -307,8 +307,8 @@ Command surface:
 - [x] Implement `brick setup`.
 - [x] Implement `brick memory add`.
 - [x] Implement `brick memory validate [path]`.
-- [ ] Implement `brick memory search "query"`.
-- [ ] Implement `brick rebuild`.
+- [x] Implement `brick memory search "query"`.
+- [x] Implement `brick rebuild`.
 - [ ] Implement `brick merge-driver ...`.
 - [ ] Implement `brick conflicts list`.
 - [ ] Implement `brick conflicts export <id>`.
@@ -319,12 +319,12 @@ Input and output rules:
 - [x] Make `brick memory add` read JSON from stdin by default.
 - [x] Make `brick memory add` reject non-JSON input.
 - [x] Make `brick memory add` return JSON by default.
-- [ ] Make `brick memory search` return JSON by default.
+- [x] Make `brick memory search` return JSON by default.
 - [x] Make `brick memory validate` return JSON by default.
 - [ ] Make `brick conflicts list` return JSON by default.
 - [ ] Make `brick conflicts export` return JSON by default.
 - [ ] Allow `brick setup` to print readable text by default.
-- [ ] Allow `brick rebuild` to print readable text by default.
+- [x] Allow `brick rebuild` to print readable text by default.
 - [x] Add `--pretty` for JSON-oriented commands in v1.
 
 Proposed `brick memory add` input contract:
@@ -374,38 +374,47 @@ Proposed `brick memory add` input contract:
 
 Index:
 
-- [ ] Store generated index state under `.agents/brick/index/`.
-- [ ] Keep generated index state out of Git.
-- [ ] Use simple local files and/or SQLite for v1.
-- [ ] Do not require Chroma, Qdrant, or another external vector database in v1.
-- [ ] Implement `brick rebuild`.
-- [ ] Rebuild deterministically from canonical Markdown memory files.
-- [ ] Keep stable `content_hash` in frontmatter.
-- [ ] Keep volatile index state outside canonical Markdown.
+- [x] Store generated index state under `.agents/brick/index/`.
+- [x] Keep generated index state out of Git.
+- [x] Use simple local files and/or SQLite for v1.
+- [x] Do not require Chroma, Qdrant, or another external vector database in v1.
+- [x] Implement `brick rebuild`.
+- [x] Rebuild deterministically from canonical Markdown memory files.
+- [x] Keep stable `content_hash` in frontmatter.
+- [x] Keep volatile index state outside canonical Markdown.
+
+SQLite index schema:
+
+- [x] Store the generated database at `.agents/brick/index/brick.sqlite3`.
+- [x] Use a `metadata` table keyed by `key` with string `value` entries for
+  schema version, rebuild timestamp, and memory count.
+- [x] Use a `memories` table keyed by memory ULID with relative path, title,
+  type, status, tags JSON, source JSON, evidence JSON, content hash, summary,
+  body, search text, and updated timestamp.
 
 Embedding:
 
-- [ ] Use `BRICK_EMBEDDING_URL` as the standard embedding endpoint environment
+- [x] Use `BRICK_EMBEDDING_URL` as the standard embedding endpoint environment
   variable.
 - [x] Use an OpenAI-compatible embedding endpoint contract for v1.
 - [ ] Define model configuration, likely `BRICK_EMBEDDING_MODEL`.
 - [ ] Support a local system-wide embedding service.
 - [ ] Support API-backed embeddings.
-- [ ] Fall back to keyword search when no embedding endpoint or API is
+- [x] Fall back to keyword search when no embedding endpoint or API is
   configured.
-- [ ] Clearly report when semantic search is unavailable.
+- [x] Clearly report when semantic search is unavailable.
 
 Retrieval:
 
 - [ ] Use hybrid retrieval when embeddings are available.
-- [ ] Do not require reranking in v1.
-- [ ] Ignore superseded memories by default.
-- [ ] Allow explicit retrieval of superseded memories.
-- [ ] Return summary in retrieval context packages.
-- [ ] Return source path in retrieval context packages.
-- [ ] Return status/trust information in retrieval context packages.
-- [ ] Return evidence in retrieval context packages.
-- [ ] Return a full-text link in retrieval context packages.
+- [x] Do not require reranking in v1.
+- [x] Ignore superseded memories by default.
+- [x] Allow explicit retrieval of superseded memories.
+- [x] Return summary in retrieval context packages.
+- [x] Return source path in retrieval context packages.
+- [x] Return status/trust information in retrieval context packages.
+- [x] Return evidence in retrieval context packages.
+- [x] Return a full-text link in retrieval context packages.
 
 ## Merge Driver Checklist
 
@@ -577,22 +586,22 @@ Exit criteria:
 
 Goal: give agents useful retrieval immediately, even without embeddings.
 
-- [ ] Implement local index storage under `.agents/brick/index/`.
-- [ ] Implement SQLite or simple local file index.
-- [ ] Implement `brick rebuild`.
-- [ ] Implement keyword fallback search.
+- [x] Implement local index storage under `.agents/brick/index/`.
+- [x] Implement SQLite or simple local file index.
+- [x] Implement `brick rebuild`.
+- [x] Implement keyword fallback search.
 - [ ] Implement optional embedding endpoint integration through
   `BRICK_EMBEDDING_URL`.
 - [ ] Implement OpenAI-compatible embedding requests.
-- [ ] Implement `brick memory search`.
-- [ ] Implement retrieval context package JSON.
+- [x] Implement `brick memory search`.
+- [x] Implement retrieval context package JSON.
 
 Exit criteria:
 
-- [ ] Search works without embeddings.
+- [x] Search works without embeddings.
 - [ ] Semantic search activates when an endpoint is configured.
-- [ ] Missing semantic capability is reported clearly.
-- [ ] Rebuild is deterministic from Markdown.
+- [x] Missing semantic capability is reported clearly.
+- [x] Rebuild is deterministic from Markdown.
 
 ### Phase 5 - Merge Driver And Conflict Review
 
@@ -647,7 +656,7 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 - [x] Add PII scanner tests.
 - [x] Add hash stability tests.
 - [x] Add CLI JSON contract tests.
-- [ ] Add rebuild/search tests.
+- [x] Add rebuild/search tests.
 - [ ] Add merge-driver fixture tests.
 - [ ] Add redaction/tombstone tests.
 
@@ -661,7 +670,7 @@ Exit criteria:
 ## Remaining Implementation Decisions
 
 - [x] Choose exact license: Apache-2.0.
-- [ ] Define exact local SQLite schema.
+- [x] Define exact local SQLite schema.
 - [x] Define exact content hash canonicalization algorithm.
 - [x] Choose exact secret detector implementation.
 - [x] Choose exact PII detector implementation.
