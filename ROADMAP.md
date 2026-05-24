@@ -667,10 +667,10 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 
 Exit criteria:
 
-- [ ] Core workflows are covered by fixtures.
-- [ ] Regression tests catch malformed memory.
-- [ ] Regression tests catch unsafe memory.
-- [ ] Regression tests catch unsafe merges.
+- [x] Core workflows are covered by fixtures.
+- [x] Regression tests catch malformed memory.
+- [x] Regression tests catch unsafe memory.
+- [x] Regression tests catch unsafe merges.
 
 ## Remaining Implementation Decisions
 
