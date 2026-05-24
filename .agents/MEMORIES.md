@@ -114,7 +114,7 @@
 - `content_hash` should be based on normalized memory content while excluding volatile fields such as `content_hash` itself and `updated_at`.
 - Block-until-confirmed PII handling should use a JSON field for confirmation rather than an interactive-only flow.
 - Public human names and emails should still require explicit confirmation before being saved to memory.
-- The license strategy should preserve the user's option to capitalize on company/commercial use; the exact license choice still needs a concrete recommendation and explicit selection.
+- Brick's license strategy should not preserve a commercial licensing gate; Brick should be free for everyone and donation-supported.
 - The conflict report JSON schema still needs proposals before it is finalized.
 - Merge-driver setup should be handled as part of `brick setup`.
 - V1 examples should include one `decision`, one `command`, one `routine`, one `skill`, and one blocked unsafe-memory example.
@@ -122,6 +122,6 @@
 - `brick setup` should install or update an `AGENTS.md` containing Brick usage instructions.
 - If a repository already has `AGENTS.md`, Brick setup should back it up and write a new `AGENTS.md` that makes user-reviewed merging of the backup and Brick instructions the first agent task.
 - The proposed conflict report JSON schema in `ROADMAP.md` is approved as the v1 baseline.
-- The licensing model should keep Brick available to indie users and provide a clear path for indie projects that use Brick and later become commercial.
+- The licensing model should keep Brick available to indie users and allow indie projects that later become commercial to keep using Brick under the same permissive terms.
 - Brick should be free for everyone, including companies, with no commercial licensing gate; the user expects to rely on donations rather than restricting commercial use.
 - Brick should use a permissive free-for-all license; Apache-2.0 is the preferred v1 license because it permits broad commercial use while including an explicit patent grant.
