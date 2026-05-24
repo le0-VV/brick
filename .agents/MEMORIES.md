@@ -153,3 +153,11 @@
 - `brick memory search` should ignore non-active memories by default, allow `superseded` memories only with an explicit flag, and keep `tombstone` and `redacted` memories out of normal retrieval.
 - Retrieval context packages should include memory id, title, type, status, tags, relative source path, full-text path, source metadata, evidence, summary, content hash, score, confidence label, and matched terms.
 - If `BRICK_EMBEDDING_URL` is not configured, `brick memory search` should still work through keyword search and report semantic search as unavailable because the environment variable is missing.
+- Brick v1 should standardize `BRICK_EMBEDDING_MODEL` alongside `BRICK_EMBEDDING_URL`; semantic indexing/search requires both variables.
+- Brick v1 should optionally read `BRICK_EMBEDDING_API_KEY` and send it as `Authorization: Bearer <key>` for API-backed OpenAI-compatible embedding endpoints.
+- `BRICK_EMBEDDING_URL` may be either a base URL such as `http://localhost:1234/v1` or a full embeddings endpoint; Brick should append `/embeddings` unless the configured path already ends with `/embeddings`.
+- Brick v1 embedding requests should use `POST` JSON with `{"model": BRICK_EMBEDDING_MODEL, "input": [text, ...]}` and should expect an OpenAI-compatible response whose `data` items contain numeric `embedding` arrays in input order.
+- When embeddings are configured, `brick rebuild` should store vectors in a generated SQLite `embeddings` table keyed by memory id and content hash, including model, dimensions, and vector JSON.
+- If embedding rebuild fails because the endpoint errors or returns malformed data, `brick rebuild` should fail without replacing the previous index.
+- `brick memory search` should use hybrid scoring when indexed embeddings and a query embedding are available, combining deterministic keyword score with cosine similarity.
+- If query embedding fails at search time, Brick should keep returning keyword results and report semantic search as unavailable with the embedding failure reason.
