@@ -1,50 +1,74 @@
 # Brick Roadmap
 
 Brick is a repo-local memory system for developer teams and open source
-projects. Its core job is to let contributors fork or clone a repository,
-give their agents useful project memory immediately, and contribute new
-memories back upstream through normal Git workflows.
+projects. This file is both the design plan and the long-horizon implementation
+checklist.
 
-This document is the working design plan and implementation roadmap. The
-canonical decision log lives in `.agents/MEMORIES.md`; this file turns those
-decisions into a buildable plan.
+Agents working on Brick should keep this file current as work lands. Mark a box
+only when the corresponding behavior is implemented, verified, and documented
+well enough for another agent to continue from the repository alone.
 
-## Product Shape
+## Checklist Rules
 
-Brick is not a hosted service and not a general personal second brain. It is
-repo infrastructure:
+- [ ] Keep `ROADMAP.md` aligned with `.agents/MEMORIES.md` when product
+  decisions change.
+- [ ] Keep `.agents/TODO.md` scoped to the current work session.
+- [ ] Mark roadmap implementation tasks complete only after verification.
+- [ ] Prefer adding concrete follow-up tasks over leaving vague TODO prose.
+- [ ] Keep generated state out of Git unless the roadmap explicitly says
+  otherwise.
 
-- Memory lives inside the project repository.
-- Canonical memory is human-readable Markdown tracked by Git.
-- Semantic search is a generated local projection, never the source of truth.
-- Forks, branches, pull requests, merges, cherry-picks, and reviews are the
+## Product Commitments
+
+- [x] Brick targets developer teams and open source communities first.
+- [x] Brick is repo infrastructure, not a hosted service or personal second
+  brain.
+- [x] Memory lives inside the project repository.
+- [x] Canonical memory is human-readable Markdown tracked by Git.
+- [x] Semantic search is a generated local projection, never the source of
+  truth.
+- [x] Forks, branches, pull requests, merges, cherry-picks, and reviews are the
   collaboration model.
-- Agent runtimes are not prescribed. Agents learn Brick from repo docs,
-  scripts, and instructions.
-- V1 should work with Python available and should manage its own dependencies.
+- [x] Agent runtimes are not prescribed.
+- [x] Agents learn Brick from repo docs, scripts, and instructions.
+- [x] V1 assumes Python is available for agentic coding workflows.
+- [x] V1 manages its own dependencies instead of depending on the host project
+  environment.
 
-The first must-win workflow:
+## Must-Win Workflow
 
-1. A contributor forks or clones a project.
-2. Their agent reads the repo-local memory and project instructions.
-3. During work, the agent identifies useful project context.
-4. The agent submits a memory candidate through Brick.
-5. Brick validates, writes, indexes, and later helps merge that memory upstream.
+- [x] A contributor forks or clones a project.
+- [x] The contributor's agent reads repo-local memory and project instructions.
+- [x] During work, the agent identifies useful project context.
+- [x] The agent submits a memory candidate through Brick.
+- [x] Brick validates, writes, indexes, and later helps merge that memory
+  upstream.
 
 ## Design Principles
 
-1. Markdown is canonical.
-2. Generated state is rebuildable.
-3. Agents do not write memory files directly.
-4. Unsupported memory is rejected, not stored as low-confidence memory.
-5. Sensitive information is invalid by default.
-6. Exact duplicates can merge automatically; semantic similarity needs review.
-7. Git remains the collaboration layer.
-8. CLI output must be predictable enough for agents to parse.
+- [x] Markdown is canonical.
+- [x] Generated state is rebuildable.
+- [x] Agents do not write memory files directly.
+- [x] Unsupported memory is rejected, not stored as low-confidence memory.
+- [x] Sensitive information is invalid by default.
+- [x] Exact duplicates can merge automatically.
+- [x] Semantic similarity requires review.
+- [x] Git remains the collaboration layer.
+- [x] CLI output must be predictable enough for agents to parse.
 
-## Repository Layout
+## Target Repository Layout
 
-Target layout:
+- [ ] Create `.agents/brick/pyproject.toml`.
+- [ ] Create one setup entrypoint under `.agents/brick/`.
+- [ ] Create `.agents/brick/index/` for generated index state.
+- [ ] Create `.agents/brick/conflicts/` for generated conflict reports.
+- [ ] Gitignore `.agents/brick/index/`.
+- [ ] Gitignore `.agents/brick/conflicts/`.
+- [ ] Create `.agents/memory/` as canonical memory root.
+- [ ] Organize memory files by type folder under `.agents/memory/`.
+- [ ] Use ULID-slug filenames for memory files.
+
+Target structure:
 
 ```text
 .agents/
@@ -66,22 +90,33 @@ Target layout:
     policy/
 ```
 
-Memory files use type folders and ULID-slug filenames:
+Filename examples:
 
 ```text
 .agents/memory/decision/01JX3Y1Y8H6TR4Y3Q38K1W9P2A-hybrid-search.md
 .agents/memory/command/01JX3Y2D8S6Q7M4K2B9P0V1W3T-run-tests.md
 ```
 
-Generated state under `.agents/brick/index/` and `.agents/brick/conflicts/`
-must be ignored by Git by default.
+## Memory Schema Checklist
 
-## Memory Schema
+- [ ] Store every memory as one Markdown file with YAML frontmatter.
+- [ ] Allow memory bodies to be freeform Markdown.
+- [ ] Do not require a duplicate `# Title` heading in the Markdown body.
+- [ ] Require `id`.
+- [ ] Require `title`.
+- [ ] Require `type`.
+- [ ] Require `status`.
+- [ ] Require `tags`.
+- [ ] Require `created_at`.
+- [ ] Require `updated_at`.
+- [ ] Require `content_hash`.
+- [ ] Require `source.kind`.
+- [ ] Require at least one `evidence` item.
+- [ ] Allow optional `supersedes`.
+- [ ] Allow optional `related`.
+- [ ] Validate `supersedes` and `related` entries as memory ULIDs when present.
 
-Every memory is one Markdown file with YAML frontmatter and a freeform Markdown
-body. The body does not need to duplicate the title as a `# Heading`.
-
-Required frontmatter:
+Required frontmatter shape:
 
 ```yaml
 id: 01JX3Y1Y8H6TR4Y3Q38K1W9P2A
@@ -102,54 +137,58 @@ evidence:
 
 Allowed `status` values:
 
-```text
-active
-superseded
-tombstone
-redacted
-```
+- [x] `active`
+- [x] `superseded`
+- [x] `tombstone`
+- [x] `redacted`
+- [x] No committed `draft` status.
 
-Committed memory must not use `draft`. Candidates stay outside canonical memory
-until valid.
+Allowed v1 `type` values:
 
-Optional relationship fields:
+- [x] `decision`
+- [x] `command`
+- [x] `routine`
+- [x] `skill`
+- [x] `preference`
+- [x] `fact`
+- [x] `incident`
+- [x] `pattern`
+- [x] `task`
+- [x] `policy`
 
-```yaml
-supersedes: []
-related: []
-```
+Tag policy:
 
-When present, `supersedes` and `related` entries must be valid memory ULIDs.
+- [x] Use `tags` for flexible topic-like labeling.
+- [x] Do not add a separate `topics` field in v1.
 
-### Trust Signals
+Trust policy:
 
-Brick should not preserve low-confidence committed memory. In v1, trust is
-expressed through required source/evidence fields, validation status, memory
-status, and retrieval scoring. If a later implementation adds an explicit
-confidence field, it must not become a way to store weak or unsupported memory
-as durable project context.
+- [x] Do not preserve low-confidence committed memory.
+- [x] Express trust through required source/evidence fields.
+- [x] Express trust through validation status.
+- [x] Express trust through memory status.
+- [x] Express retrieval confidence through retrieval scoring, not weak durable
+  memory.
+- [ ] If a later explicit confidence field is added, prevent it from becoming a
+  way to store weak or unsupported memory as durable project context.
 
-V1 types:
+## Type-Specific Schema Checklist
 
-```text
-decision
-command
-routine
-skill
-preference
-fact
-incident
-pattern
-task
-policy
-```
+- [ ] Support lightweight structured fields for `command` memories.
+- [ ] Support lightweight structured fields for `routine` memories.
+- [ ] Support lightweight structured fields for `skill` memories.
+- [ ] Keep type-specific detail human-readable in Markdown even when structured
+  fields exist.
 
-Tags provide flexible topic-like labeling. Brick should not have a separate
-`topics` field in v1.
+`command` fields:
 
-### Type-Specific Fields
+- [ ] Support `command`.
+- [ ] Support `cwd`.
+- [ ] Support `when_to_use`.
+- [ ] Support `expected_output`.
+- [ ] Support `failure_notes`.
 
-`command` memories may include:
+Example:
 
 ```yaml
 command: "uv run pytest"
@@ -159,7 +198,13 @@ expected_output: "Tests pass."
 failure_notes: "If dependencies are missing, run brick setup."
 ```
 
-`routine` and `skill` memories may include:
+`routine` and `skill` fields:
+
+- [ ] Support `steps`.
+- [ ] Support `prerequisites`.
+- [ ] Support `verify`.
+
+Example:
 
 ```yaml
 steps:
@@ -170,33 +215,44 @@ prerequisites:
 verify: "CI passes and release artifact exists."
 ```
 
-## Validation And Safety
+## Validation And Safety Checklist
 
-Validation is part of the core product, not a later hardening step.
+- [ ] Parse YAML frontmatter.
+- [ ] Parse Markdown body.
+- [ ] Require all core schema fields.
+- [ ] Validate plain ULID IDs without a `mem_` prefix.
+- [ ] Validate `type`.
+- [ ] Validate `status`.
+- [ ] Validate timestamps.
+- [ ] Validate `content_hash`.
+- [ ] Require `source.kind`.
+- [ ] Require at least one `evidence` item.
+- [ ] Reject memories without enough evidence.
+- [ ] Reject unsupported durable memory.
+- [ ] Reject low-confidence durable memory.
+- [ ] Reject non-JSON input to `brick memory add`.
+- [ ] Return structured JSON for validation failures.
 
-Required validation:
+Secret and PII checks:
 
-- Parse YAML frontmatter and Markdown body.
-- Require all core schema fields.
-- Validate plain ULID IDs.
-- Validate `type`, `status`, timestamps, and `content_hash`.
-- Require `source.kind`.
-- Require at least one `evidence` item.
-- Reject memories without enough evidence.
-- Reject unsupported or low-confidence durable memory.
-- Block obvious secrets before writing memory.
-- Block possible PII until explicitly confirmed.
-- Reject non-JSON input to `brick memory add`.
+- [ ] Block obvious API keys before writing memory.
+- [ ] Block private keys before writing memory.
+- [ ] Block tokens before writing memory.
+- [ ] Block passwords before writing memory.
+- [ ] Block possible names until explicitly confirmed.
+- [ ] Block possible emails until explicitly confirmed.
+- [ ] Block possible phone numbers until explicitly confirmed.
+- [ ] Block possible addresses until explicitly confirmed.
+- [ ] Ensure committed memory is safe for the repository's intended audience.
 
-Secret and PII handling:
+Redaction:
 
-- Obvious secrets include API keys, private keys, tokens, and passwords.
-- Possible PII includes names, emails, phone numbers, and addresses.
-- Committed memory should be safe for the repository's intended audience.
-- If sensitive content slips through, redaction creates a new commit replacing
-  leaked text with `[REDACTED]` plus a tombstone or evidence note.
+- [ ] Provide a redaction flow for sensitive content that slips through.
+- [ ] Replace leaked text with `[REDACTED]`.
+- [ ] Create a tombstone or evidence note explaining why redaction happened.
+- [ ] Rebuild the local index after redaction.
 
-Blocked candidates must return structured JSON:
+Blocked candidate response shape:
 
 ```json
 {
@@ -209,286 +265,285 @@ Blocked candidates must return structured JSON:
 }
 ```
 
-## CLI Surface
+## CLI Checklist
 
-V1 command surface:
+Command surface:
 
-```text
-brick setup
-brick memory add
-brick memory validate [path]
-brick memory search "query"
-brick rebuild
-brick merge-driver ...
-brick conflicts list
-brick conflicts export <id>
-```
+- [ ] Implement `brick setup`.
+- [ ] Implement `brick memory add`.
+- [ ] Implement `brick memory validate [path]`.
+- [ ] Implement `brick memory search "query"`.
+- [ ] Implement `brick rebuild`.
+- [ ] Implement `brick merge-driver ...`.
+- [ ] Implement `brick conflicts list`.
+- [ ] Implement `brick conflicts export <id>`.
 
-CLI rules:
+Input and output rules:
 
-- Keep memory operations under `brick memory`.
-- `brick memory add` reads JSON from stdin by default.
-- `brick memory add` rejects non-JSON input.
-- Agent-facing commands return JSON by default:
-  - `brick memory add`
-  - `brick memory search`
-  - `brick memory validate`
-  - `brick conflicts list`
-  - `brick conflicts export`
-- Human/convenience commands such as `brick setup` and `brick rebuild` may print
-  readable text by default.
-- JSON-oriented commands support `--pretty` in v1.
+- [ ] Keep memory operations under `brick memory`.
+- [ ] Make `brick memory add` read JSON from stdin by default.
+- [ ] Make `brick memory add` reject non-JSON input.
+- [ ] Make `brick memory add` return JSON by default.
+- [ ] Make `brick memory search` return JSON by default.
+- [ ] Make `brick memory validate` return JSON by default.
+- [ ] Make `brick conflicts list` return JSON by default.
+- [ ] Make `brick conflicts export` return JSON by default.
+- [ ] Allow `brick setup` to print readable text by default.
+- [ ] Allow `brick rebuild` to print readable text by default.
+- [ ] Add `--pretty` for JSON-oriented commands in v1.
 
-## Dependency Management
+## Dependency Checklist
 
-Brick can assume Python is available for agentic coding workflows.
+- [ ] Assume Python is available.
+- [ ] Prefer `uv` for dependency setup.
+- [ ] Fall back to `pip`.
+- [ ] Keep Brick dependencies under `.agents/brick/pyproject.toml`.
+- [ ] Use a Brick-owned virtual environment.
+- [ ] Do not use the host project's main virtual environment.
+- [ ] Provide one setup entrypoint.
+- [ ] Make Brick commands run setup or resolve dependencies when possible.
+- [ ] Emit actionable setup/dependency messages when automatic setup cannot
+  proceed.
 
-Dependency rules:
+## Local Index And Retrieval Checklist
 
-- Prefer `uv`.
-- Fall back to `pip`.
-- Keep Brick dependencies under `.agents/brick/pyproject.toml`.
-- Use a Brick-owned virtual environment, not the host project's main venv.
-- Provide one setup entrypoint.
-- Brick commands should run setup or resolve dependencies instead of leaving
-  users or agents to manually install packages.
+Index:
 
-## Local Index And Retrieval
+- [ ] Store generated index state under `.agents/brick/index/`.
+- [ ] Keep generated index state out of Git.
+- [ ] Use simple local files and/or SQLite for v1.
+- [ ] Do not require Chroma, Qdrant, or another external vector database in v1.
+- [ ] Implement `brick rebuild`.
+- [ ] Rebuild deterministically from canonical Markdown memory files.
+- [ ] Keep stable `content_hash` in frontmatter.
+- [ ] Keep volatile index state outside canonical Markdown.
 
-The Markdown files are authoritative. The local index is disposable.
+Embedding:
 
-Index rules:
+- [ ] Use `BRICK_EMBEDDING_URL` as the standard embedding endpoint environment
+  variable.
+- [ ] Support a local system-wide embedding service.
+- [ ] Support API-backed embeddings.
+- [ ] Fall back to keyword search when no embedding endpoint or API is
+  configured.
+- [ ] Clearly report when semantic search is unavailable.
 
-- Generated state lives under `.agents/brick/index/`.
-- Generated state is gitignored.
-- V1 uses simple local files and/or SQLite.
-- V1 does not require Chroma, Qdrant, or another external vector database.
-- `brick rebuild` regenerates the local index from Markdown memory files.
-- Stable `content_hash` lives in frontmatter.
-- Volatile index state stays outside canonical Markdown.
+Retrieval:
 
-Embedding rules:
+- [ ] Use hybrid retrieval when embeddings are available.
+- [ ] Do not require reranking in v1.
+- [ ] Ignore superseded memories by default.
+- [ ] Allow explicit retrieval of superseded memories.
+- [ ] Return summary in retrieval context packages.
+- [ ] Return source path in retrieval context packages.
+- [ ] Return status/trust information in retrieval context packages.
+- [ ] Return evidence in retrieval context packages.
+- [ ] Return a full-text link in retrieval context packages.
 
-- `BRICK_EMBEDDING_URL` is the standard embedding endpoint variable.
-- Brick can use a local system-wide embedding service or API-backed embeddings.
-- If no embedding endpoint or API is configured, Brick falls back to keyword
-  search and clearly reports that semantic search is unavailable.
+## Merge Driver Checklist
 
-Retrieval rules:
+Core merge behavior:
 
-- Retrieval is hybrid when embeddings are available.
-- Reranking is not a v1 requirement.
-- Superseded memories are ignored by default.
-- Superseded memories can be retrieved explicitly.
-- Returned context packages include summary, source path, confidence/status
-  information, evidence, and a full-text link.
-
-## Merge Driver
-
-The merge driver is central to Brick because the product exists to make memory
-safe to manage through forks and PRs.
-
-Merge behavior:
-
-- Auto-merge exact duplicate memory IDs or exact duplicate content.
-- Do not silently merge semantically similar memories.
-- Create structured conflict/review items for semantic similarity.
-- Agents may propose merged memories.
-- Human acceptance is required before Brick writes a final merged memory.
-- Deterministic frontmatter fields merge automatically when non-conflicting.
-- The Markdown body uses normal Git-style text merge behavior.
-- If the same structured frontmatter field changes differently on both sides,
-  Brick blocks and creates a conflict report.
-- Append-only fields such as `evidence` may union distinct entries.
+- [ ] Implement `brick merge-driver`.
+- [ ] Add `.gitattributes` guidance for memory files.
+- [ ] Auto-merge exact duplicate memory IDs.
+- [ ] Auto-merge exact duplicate content.
+- [ ] Do not silently merge semantically similar memories.
+- [ ] Create structured conflict/review items for semantic similarity.
+- [ ] Allow agents to propose merged memories.
+- [ ] Require human acceptance before Brick writes a final merged memory.
+- [ ] Merge deterministic frontmatter fields automatically when non-conflicting.
+- [ ] Use normal Git-style text merge behavior for Markdown body edits.
+- [ ] Block when the same structured frontmatter field changes differently on
+  both sides.
+- [ ] Create a conflict report when structured frontmatter conflicts.
+- [ ] Union distinct entries for append-only fields such as `evidence`.
 
 Conflict reports:
 
-- Stored under `.agents/brick/conflicts/`.
-- Gitignored by default.
-- Exportable when a user wants to share a report in PR discussion or review.
+- [ ] Store conflict reports under `.agents/brick/conflicts/`.
+- [ ] Keep conflict reports gitignored by default.
+- [ ] Implement `brick conflicts list`.
+- [ ] Implement `brick conflicts export <id>`.
+- [ ] Make conflict reports exportable for PR discussion or review.
 
-## Roadmap
+## Phase Roadmap Checklist
 
 ### Phase 0 - Specification Baseline
 
 Goal: capture product decisions in a form that can drive implementation.
 
-Deliverables:
-
-- `ROADMAP.md`
-- Initial schema contract
-- Initial command surface
-- Initial repo layout
-- Initial safety and merge-driver policy
+- [x] Create `ROADMAP.md`.
+- [x] Capture initial schema contract.
+- [x] Capture initial command surface.
+- [x] Capture initial repo layout.
+- [x] Capture initial safety policy.
+- [x] Capture initial merge-driver policy.
+- [ ] Keep the roadmap checklist updated as implementation discovers concrete
+  details.
 
 Exit criteria:
 
-- Product boundaries are clear.
-- V1 scope is narrow enough to build.
-- Remaining unknowns are implementation details, not product identity.
+- [x] Product boundaries are clear.
+- [x] V1 scope is narrow enough to build.
+- [x] Remaining unknowns are implementation details, not product identity.
 
 ### Phase 1 - Skeleton And Setup
 
 Goal: make Brick runnable from a cloned repo.
 
-Deliverables:
-
-- `.agents/brick/pyproject.toml`
-- Setup entrypoint
-- Brick-owned venv handling
-- `brick setup`
-- Basic CLI argument parser
-- `.gitignore` entries for generated index and conflict reports
+- [ ] Add `.agents/brick/pyproject.toml`.
+- [ ] Add setup entrypoint.
+- [ ] Add Brick-owned venv handling.
+- [ ] Implement `brick setup`.
+- [ ] Add basic CLI argument parser.
+- [ ] Add gitignore entries for generated index state.
+- [ ] Add gitignore entries for generated conflict reports.
 
 Exit criteria:
 
-- A fresh clone can run `brick setup`.
-- Commands fail with actionable dependency/setup messages.
-- No generated state is accidentally tracked.
+- [ ] A fresh clone can run `brick setup`.
+- [ ] Commands fail with actionable dependency/setup messages.
+- [ ] No generated state is accidentally tracked.
 
 ### Phase 2 - Schema And Validation
 
 Goal: make canonical Markdown memory safe and consistent.
 
-Deliverables:
-
-- YAML frontmatter parser
-- Markdown memory loader
-- Schema validator
-- ULID generation and validation
-- Content hash calculation
-- Secret scanner
-- PII block-until-confirmed flow
-- Structured validation output
-- `brick memory validate`
+- [ ] Implement YAML frontmatter parser.
+- [ ] Implement Markdown memory loader.
+- [ ] Implement schema validator.
+- [ ] Implement ULID generation.
+- [ ] Implement ULID validation.
+- [ ] Implement content hash calculation.
+- [ ] Implement secret scanner.
+- [ ] Implement PII block-until-confirmed flow.
+- [ ] Implement structured validation output.
+- [ ] Implement `brick memory validate`.
 
 Exit criteria:
 
-- Invalid memory is rejected with machine-readable reasons.
-- Missing evidence is rejected.
-- Obvious secrets are blocked.
-- Possible PII is blocked until confirmed.
+- [ ] Invalid memory is rejected with machine-readable reasons.
+- [ ] Missing evidence is rejected.
+- [ ] Obvious secrets are blocked.
+- [ ] Possible PII is blocked until confirmed.
 
 ### Phase 3 - Memory Write Path
 
 Goal: let agents add memory without writing files directly.
 
-Deliverables:
-
-- `brick memory add`
-- JSON stdin input contract
-- Slug generation
-- Type-folder file creation
-- Type-specific field validation
-- `active`, `superseded`, `tombstone`, `redacted` status handling
-- Human-readable `--pretty` output
+- [ ] Implement `brick memory add`.
+- [ ] Define JSON stdin input contract.
+- [ ] Implement slug generation.
+- [ ] Implement type-folder file creation.
+- [ ] Implement type-specific field validation.
+- [ ] Implement `active` status handling.
+- [ ] Implement `superseded` status handling.
+- [ ] Implement `tombstone` status handling.
+- [ ] Implement `redacted` status handling.
+- [ ] Implement human-readable `--pretty` output.
 
 Exit criteria:
 
-- Agents can submit valid JSON and Brick writes Markdown.
-- Non-JSON input is rejected.
-- Written files pass validation.
-- Generated filenames are stable and reviewable.
+- [ ] Agents can submit valid JSON and Brick writes Markdown.
+- [ ] Non-JSON input is rejected.
+- [ ] Written files pass validation.
+- [ ] Generated filenames are stable and reviewable.
 
 ### Phase 4 - Index And Search
 
 Goal: give agents useful retrieval immediately, even without embeddings.
 
-Deliverables:
-
-- Local index storage under `.agents/brick/index/`
-- SQLite or simple local file index
-- `brick rebuild`
-- Keyword fallback search
-- Optional embedding endpoint integration through `BRICK_EMBEDDING_URL`
-- `brick memory search`
-- Retrieval context package JSON
+- [ ] Implement local index storage under `.agents/brick/index/`.
+- [ ] Implement SQLite or simple local file index.
+- [ ] Implement `brick rebuild`.
+- [ ] Implement keyword fallback search.
+- [ ] Implement optional embedding endpoint integration through
+  `BRICK_EMBEDDING_URL`.
+- [ ] Implement `brick memory search`.
+- [ ] Implement retrieval context package JSON.
 
 Exit criteria:
 
-- Search works without embeddings.
-- Semantic search activates when an endpoint is configured.
-- Missing semantic capability is reported clearly.
-- Rebuild is deterministic from Markdown.
+- [ ] Search works without embeddings.
+- [ ] Semantic search activates when an endpoint is configured.
+- [ ] Missing semantic capability is reported clearly.
+- [ ] Rebuild is deterministic from Markdown.
 
 ### Phase 5 - Merge Driver And Conflict Review
 
 Goal: make fork/upstream memory collaboration safe.
 
-Deliverables:
-
-- `brick merge-driver`
-- `.gitattributes` guidance
-- Exact duplicate auto-merge
-- Structured frontmatter merge
-- Evidence union behavior
-- Semantic similarity detection hook
-- Conflict report generation
-- `brick conflicts list`
-- `brick conflicts export`
+- [ ] Implement `brick merge-driver`.
+- [ ] Add `.gitattributes` guidance.
+- [ ] Implement exact duplicate auto-merge.
+- [ ] Implement structured frontmatter merge.
+- [ ] Implement evidence union behavior.
+- [ ] Implement semantic similarity detection hook.
+- [ ] Implement conflict report generation.
+- [ ] Implement `brick conflicts list`.
+- [ ] Implement `brick conflicts export`.
 
 Exit criteria:
 
-- Exact duplicates do not create noisy conflicts.
-- Semantic similarity never silently rewrites memory.
-- Agents can read conflict reports and propose fixes.
-- Users can export conflict reports for PR review.
+- [ ] Exact duplicates do not create noisy conflicts.
+- [ ] Semantic similarity never silently rewrites memory.
+- [ ] Agents can read conflict reports and propose fixes.
+- [ ] Users can export conflict reports for PR review.
 
 ### Phase 6 - Agent Instructions And Examples
 
 Goal: make Brick self-explanatory to agents working in a repo.
 
-Deliverables:
-
-- Agent-facing usage instructions
-- Example memory files for each core type
-- Example `brick memory add` payloads
-- Example search and conflict workflows
-- README quickstart
+- [ ] Add agent-facing usage instructions.
+- [ ] Add example memory files for each core type.
+- [ ] Add example `brick memory add` payloads.
+- [ ] Add example search workflow.
+- [ ] Add example conflict workflow.
+- [ ] Add README quickstart.
 
 Exit criteria:
 
-- A new agent can discover how to use Brick from repo files.
-- Contributors can fork, run setup, search memory, and add memory.
+- [ ] A new agent can discover how to use Brick from repo files.
+- [ ] Contributors can fork, run setup, search memory, and add memory.
 
 ### Phase 7 - Quality And Regression Tests
 
 Goal: keep Brick from corrupting or poisoning repo memory.
 
-Deliverables:
-
-- Schema validation tests
-- Secret/PII scanner tests
-- Hash stability tests
-- CLI JSON contract tests
-- Rebuild/search tests
-- Merge-driver fixture tests
-- Redaction/tombstone tests
+- [ ] Add schema validation tests.
+- [ ] Add secret scanner tests.
+- [ ] Add PII scanner tests.
+- [ ] Add hash stability tests.
+- [ ] Add CLI JSON contract tests.
+- [ ] Add rebuild/search tests.
+- [ ] Add merge-driver fixture tests.
+- [ ] Add redaction/tombstone tests.
 
 Exit criteria:
 
-- Core workflows are covered by fixtures.
-- Regression tests catch malformed memory, unsafe memory, and unsafe merges.
+- [ ] Core workflows are covered by fixtures.
+- [ ] Regression tests catch malformed memory.
+- [ ] Regression tests catch unsafe memory.
+- [ ] Regression tests catch unsafe merges.
 
 ## Remaining Implementation Decisions
 
-These should be resolved during implementation rather than through more product
-definition:
-
-- Exact Python CLI framework, if any.
-- Exact local SQLite schema.
-- Exact content hash canonicalization algorithm.
-- Exact secret and PII detector implementation.
-- Exact embedding endpoint request/response contract.
-- Exact conflict report JSON schema.
-- Exact `.gitattributes` merge-driver installation flow.
+- [ ] Choose exact Python CLI framework, if any.
+- [ ] Define exact local SQLite schema.
+- [ ] Define exact content hash canonicalization algorithm.
+- [ ] Choose exact secret detector implementation.
+- [ ] Choose exact PII detector implementation.
+- [ ] Define exact embedding endpoint request/response contract.
+- [ ] Define exact conflict report JSON schema.
+- [ ] Define exact `.gitattributes` merge-driver installation flow.
 
 ## V1 Non-Goals
 
-- Hosted service.
-- Product telemetry.
-- Realtime collaborative editing.
-- Required external vector database.
-- Required reranker model.
-- PR/issue/commit mining as a first ingest source.
-- Storing secrets or sensitive private data in memory.
+- [x] Hosted service.
+- [x] Product telemetry.
+- [x] Realtime collaborative editing.
+- [x] Required external vector database.
+- [x] Required reranker model.
+- [x] PR/issue/commit mining as a first ingest source.
+- [x] Storing secrets or sensitive private data in memory.
