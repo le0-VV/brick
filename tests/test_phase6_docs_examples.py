@@ -57,6 +57,9 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         ):
             self.assertIn(command, readme + usage)
         self.assertIn("Im calling it brick because fuck naming.", readme)
+        self.assertIn("BRICK_EMBEDDING_URL", usage)
+        self.assertIn("BRICK_EMBEDDING_MODEL", usage)
+        self.assertIn("keyword-only", usage)
 
     def test_example_memory_files_validate(self) -> None:
         completed = run_brick(

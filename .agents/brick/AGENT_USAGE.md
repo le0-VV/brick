@@ -10,13 +10,18 @@ or merge-review memory may affect your work.
    Setup also creates or repairs `.agents/brick/.venv`, preferring `uv` and
    falling back to `pip` for dependencies declared in
    `.agents/brick/pyproject.toml`.
-2. Search memory before relying on assumptions:
+2. Check whether semantic retrieval is configured for this machine. Brick reads
+   embedding settings from `BRICK_EMBEDDING_URL` and `BRICK_EMBEDDING_MODEL`.
+   If either is missing, `./brick memory search` still works, but it is
+   keyword-only; report that limitation before relying on retrieval quality.
+3. Search memory before relying on assumptions:
 
    ```sh
    ./brick memory search "topic or task" --pretty
    ```
 
-3. If `.agents/brick/index/brick.sqlite3` is missing or stale, run:
+4. If `.agents/brick/index/brick.sqlite3` is missing or stale, or if embedding
+   settings changed, run:
 
    ```sh
    ./brick rebuild

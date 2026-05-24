@@ -47,7 +47,11 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / ".agents/memory/decision").is_dir())
         self.assertIn(".agents/brick/.venv/", (repo / ".gitignore").read_text())
         self.assertIn(cli.GITATTRIBUTES_ENTRY, (repo / ".gitattributes").read_text())
-        self.assertIn(cli.BRICK_AGENT_MARKER, (repo / "AGENTS.md").read_text())
+        agents = (repo / "AGENTS.md").read_text()
+        self.assertIn(cli.BRICK_AGENT_MARKER, agents)
+        self.assertIn("BRICK_EMBEDDING_URL", agents)
+        self.assertIn("BRICK_EMBEDDING_MODEL", agents)
+        self.assertIn("keyword-only", agents)
 
         driver = subprocess.run(
             ["git", "config", "--local", "--get", "merge.brick-memory.driver"],
