@@ -18,6 +18,7 @@
 - V1 memory metadata should use one required machine-facing `type` plus multiple flexible `tags`.
 - Brick should not have a separate `topics` field in v1; topic-like labeling should use `tags`.
 - The `type` field should drive schema validation, rendering, and agent behavior, while `tags` should support discovery and semantic/human labeling.
+- Memory IDs should use plain ULIDs without a `mem_` prefix.
 - Every memory should require a stable `content_hash` metadata field.
 - `command`, `routine`, and `skill` memory types should have lightweight structured fields rather than keeping all type-specific detail only in the Markdown body.
 - `command` memories should support structured fields such as `command`, `cwd`, `when_to_use`, `expected_output`, and `failure_notes`.
