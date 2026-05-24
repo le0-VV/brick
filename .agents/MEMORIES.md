@@ -143,3 +143,13 @@
 - V1 routine and skill memories should allow only `steps`, `prerequisites`, and `verify` in `fields`.
 - V1 non-command/routine/skill memory types should reject non-empty `fields`.
 - `brick memory add` should validate the rendered Markdown before writing it to canonical memory and return the same blocked/invalid JSON style as validation failures.
+- Brick v1 local index state should use SQLite at `.agents/brick/index/brick.sqlite3`.
+- Brick v1 SQLite index should contain a `metadata` table for schema/version/rebuild facts and a `memories` table keyed by memory ULID, with relative path, title, type, status, tags JSON, source JSON, evidence JSON, content hash, summary, body, search text, and updated timestamp.
+- `brick rebuild` should validate every canonical Markdown memory before replacing the local SQLite index and should fail without writing a new index when any memory is invalid or blocked.
+- `brick rebuild` should be deterministic from sorted canonical Markdown paths and should keep all volatile rebuild metadata outside canonical Markdown.
+- `brick memory search` should use the SQLite index and keyword fallback in v1, returning JSON by default with query, index metadata, retrieval mode, semantic availability, and retrieval context packages.
+- `brick memory search` should fail fast with an actionable `index_missing` response when the SQLite index has not been built instead of silently scanning Markdown.
+- V1 keyword search should rank by deterministic weighted matches across title, tags, type, source, evidence, summary, and body, then break ties by path.
+- `brick memory search` should ignore non-active memories by default, allow `superseded` memories only with an explicit flag, and keep `tombstone` and `redacted` memories out of normal retrieval.
+- Retrieval context packages should include memory id, title, type, status, tags, relative source path, full-text path, source metadata, evidence, summary, content hash, score, confidence label, and matched terms.
+- If `BRICK_EMBEDDING_URL` is not configured, `brick memory search` should still work through keyword search and report semantic search as unavailable because the environment variable is missing.
