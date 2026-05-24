@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import sqlite3
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,9 +23,13 @@ from brick.memory import (
 )
 
 
-INDEX_SCHEMA_VERSION = 1
+INDEX_SCHEMA_VERSION = 2
 INDEX_RELATIVE_PATH = Path(".agents/brick/index/brick.sqlite3")
 SEMANTIC_ENV_VAR = "BRICK_EMBEDDING_URL"
+EMBEDDING_MODEL_ENV_VAR = "BRICK_EMBEDDING_MODEL"
+EMBEDDING_API_KEY_ENV_VAR = "BRICK_EMBEDDING_API_KEY"
+EMBEDDING_TIMEOUT_SECONDS = 30
+HYBRID_SEMANTIC_WEIGHT = 20.0
 TOKEN_RE = re.compile(r"[a-z0-9][a-z0-9_-]*")
 MAX_SUMMARY_LENGTH = 240
 
@@ -49,22 +56,44 @@ class BrickIndexError(RuntimeError):
         }
 
 
+class EmbeddingError(RuntimeError):
+    def __init__(self, reason: str, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+
+@dataclass(frozen=True)
+class EmbeddingConfig:
+    endpoint_url: str
+    model: str
+    api_key: str | None = None
+
+
 @dataclass
 class RebuildResult:
     path: Path
     rebuilt_at: str
     memory_count: int
     validation_results: list[ValidationResult]
+    embedding_count: int = 0
+    embedding_model: str | None = None
+    embedding_dimensions: int | None = None
 
     def to_dict(self, repo_root: Path) -> dict[str, Any]:
+        index: dict[str, Any] = {
+            "path": relative_to_repo(repo_root, self.path),
+            "schema_version": INDEX_SCHEMA_VERSION,
+            "rebuilt_at": self.rebuilt_at,
+            "memory_count": self.memory_count,
+            "embedding_count": self.embedding_count,
+        }
+        if self.embedding_model is not None:
+            index["embedding_model"] = self.embedding_model
+        if self.embedding_dimensions is not None:
+            index["embedding_dimensions"] = self.embedding_dimensions
         return {
             "status": "ok",
-            "index": {
-                "path": relative_to_repo(repo_root, self.path),
-                "schema_version": INDEX_SCHEMA_VERSION,
-                "rebuilt_at": self.rebuilt_at,
-                "memory_count": self.memory_count,
-            },
+            "index": index,
             "checked": len(self.validation_results),
             "results": [result.to_dict(repo_root) for result in self.validation_results],
         }
@@ -74,8 +103,14 @@ def index_path(repo_root: Path) -> Path:
     return repo_root / INDEX_RELATIVE_PATH
 
 
-def rebuild_index(repo_root: Path, *, now: datetime | None = None) -> RebuildResult:
+def rebuild_index(
+    repo_root: Path,
+    *,
+    now: datetime | None = None,
+    env: Mapping[str, str] | None = None,
+) -> RebuildResult:
     repo_root = repo_root.resolve()
+    env = os.environ if env is None else env
     paths = discover_memory_files(repo_root)
     validation_results = validate_memory_paths(repo_root, paths)
     validation_status = aggregate_validation_status(validation_results)
@@ -92,6 +127,28 @@ def rebuild_index(repo_root: Path, *, now: datetime | None = None) -> RebuildRes
         )
 
     documents = [load_memory(path) for path in paths]
+    memory_rows = [memory_row(repo_root, document) for document in documents]
+    embedding_config = configured_embedding(env)
+    embedding_vectors: list[list[float]] = []
+    embedding_dimensions: int | None = None
+    if embedding_config is not None and memory_rows:
+        try:
+            embedding_vectors = request_embeddings(
+                embedding_config,
+                [row["search_text"] for row in memory_rows],
+            )
+            embedding_dimensions = validate_embedding_dimensions(embedding_vectors)
+        except EmbeddingError as exc:
+            raise BrickIndexError(
+                str(exc),
+                code=exc.reason,
+                payload={
+                    "status": "error",
+                    "reason": exc.reason,
+                    "message": str(exc),
+                },
+            ) from exc
+
     rebuilt_at = format_timestamp(now or datetime.now(UTC))
     target = index_path(repo_root)
     try:
@@ -109,9 +166,19 @@ def rebuild_index(repo_root: Path, *, now: datetime | None = None) -> RebuildRes
         connection = sqlite3.connect(temporary)
         try:
             initialize_schema(connection)
-            write_metadata(connection, rebuilt_at, len(documents))
-            for document in documents:
-                insert_memory(connection, repo_root, document)
+            for row in memory_rows:
+                insert_memory(connection, row)
+            if embedding_config is not None:
+                for row, vector in zip(memory_rows, embedding_vectors, strict=True):
+                    insert_embedding(connection, row, embedding_config, vector)
+            write_metadata(
+                connection,
+                rebuilt_at,
+                len(memory_rows),
+                embedding_count=len(embedding_vectors),
+                embedding_model=embedding_config.model if embedding_config else None,
+                embedding_dimensions=embedding_dimensions,
+            )
             connection.commit()
         finally:
             connection.close()
@@ -130,8 +197,11 @@ def rebuild_index(repo_root: Path, *, now: datetime | None = None) -> RebuildRes
     return RebuildResult(
         path=target,
         rebuilt_at=rebuilt_at,
-        memory_count=len(documents),
+        memory_count=len(memory_rows),
         validation_results=validation_results,
+        embedding_count=len(embedding_vectors),
+        embedding_model=embedding_config.model if embedding_config else None,
+        embedding_dimensions=embedding_dimensions,
     )
 
 
@@ -145,6 +215,7 @@ def aggregate_validation_status(results: list[ValidationResult]) -> str:
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
     connection.execute(f"PRAGMA user_version = {INDEX_SCHEMA_VERSION}")
+    connection.execute("PRAGMA foreign_keys = ON")
     connection.execute(
         """
         CREATE TABLE metadata (
@@ -172,23 +243,49 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         )
         """
     )
+    connection.execute(
+        """
+        CREATE TABLE embeddings (
+            memory_id TEXT PRIMARY KEY,
+            content_hash TEXT NOT NULL,
+            model TEXT NOT NULL,
+            dimensions INTEGER NOT NULL,
+            vector_json TEXT NOT NULL,
+            FOREIGN KEY(memory_id) REFERENCES memories(id) ON DELETE CASCADE
+        )
+        """
+    )
     connection.execute("CREATE INDEX memories_status_idx ON memories(status)")
     connection.execute("CREATE INDEX memories_type_idx ON memories(type)")
+    connection.execute("CREATE INDEX embeddings_model_idx ON embeddings(model)")
 
 
-def write_metadata(connection: sqlite3.Connection, rebuilt_at: str, memory_count: int) -> None:
+def write_metadata(
+    connection: sqlite3.Connection,
+    rebuilt_at: str,
+    memory_count: int,
+    *,
+    embedding_count: int = 0,
+    embedding_model: str | None = None,
+    embedding_dimensions: int | None = None,
+) -> None:
     rows = {
         "schema_version": str(INDEX_SCHEMA_VERSION),
         "rebuilt_at": rebuilt_at,
         "memory_count": str(memory_count),
+        "embedding_count": str(embedding_count),
     }
+    if embedding_model is not None:
+        rows["embedding_model"] = embedding_model
+    if embedding_dimensions is not None:
+        rows["embedding_dimensions"] = str(embedding_dimensions)
     connection.executemany(
         "INSERT INTO metadata (key, value) VALUES (?, ?)",
         sorted(rows.items()),
     )
 
 
-def insert_memory(connection: sqlite3.Connection, repo_root: Path, document: MemoryDocument) -> None:
+def memory_row(repo_root: Path, document: MemoryDocument) -> dict[str, str]:
     frontmatter = document.frontmatter
     title = as_text(frontmatter["title"])
     body = normalize_body(document.body)
@@ -196,7 +293,7 @@ def insert_memory(connection: sqlite3.Connection, repo_root: Path, document: Mem
     tags = frontmatter["tags"]
     source = frontmatter["source"]
     evidence = frontmatter["evidence"]
-    row = {
+    return {
         "id": as_text(frontmatter["id"]),
         "path": relative_to_repo(repo_root, document.path),
         "title": title,
@@ -211,6 +308,9 @@ def insert_memory(connection: sqlite3.Connection, repo_root: Path, document: Mem
         "search_text": build_search_text(frontmatter, body, summary),
         "updated_at": as_text(frontmatter["updated_at"]),
     }
+
+
+def insert_memory(connection: sqlite3.Connection, row: dict[str, str]) -> None:
     connection.execute(
         """
         INSERT INTO memories (
@@ -227,6 +327,29 @@ def insert_memory(connection: sqlite3.Connection, repo_root: Path, document: Mem
     )
 
 
+def insert_embedding(
+    connection: sqlite3.Connection,
+    row: dict[str, str],
+    config: EmbeddingConfig,
+    vector: list[float],
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO embeddings (
+            memory_id, content_hash, model, dimensions, vector_json
+        )
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            row["id"],
+            row["content_hash"],
+            config.model,
+            len(vector),
+            json_dumps(vector),
+        ),
+    )
+
+
 def search_index(
     repo_root: Path,
     query: str,
@@ -236,6 +359,7 @@ def search_index(
     env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root.resolve()
+    env = os.environ if env is None else env
     if limit <= 0:
         raise BrickIndexError(
             "limit must be greater than zero",
@@ -278,19 +402,55 @@ def search_index(
     try:
         connection.row_factory = sqlite3.Row
         metadata = read_metadata(connection)
+        ensure_current_schema(repo_root, target, metadata)
         rows = read_search_rows(connection, include_superseded=include_superseded)
     except sqlite3.Error as exc:
         raise index_read_error(repo_root, target, exc) from exc
     finally:
         connection.close()
 
+    embedding_config = configured_embedding(env)
+    query_vector: list[float] | None = None
+    semantic = unavailable_semantic_status(env)
+    indexed_embedding_count = sum(1 for row in rows if row["embedding_vector_json"] is not None)
+    if embedding_config is not None:
+        semantic = semantic_status_for_index(metadata, embedding_config, indexed_embedding_count)
+        if semantic["available"]:
+            try:
+                query_vector = request_embeddings(embedding_config, [query])[0]
+                query_dimensions = len(query_vector)
+                indexed_dimensions = metadata.get("embedding_dimensions")
+                if indexed_dimensions != query_dimensions:
+                    query_vector = None
+                    semantic = {
+                        "available": False,
+                        "reason": "embedding_dimension_mismatch",
+                        "env": SEMANTIC_ENV_VAR,
+                        "model": embedding_config.model,
+                        "indexed_dimensions": indexed_dimensions,
+                        "query_dimensions": query_dimensions,
+                    }
+                else:
+                    semantic["query_dimensions"] = query_dimensions
+            except EmbeddingError as exc:
+                query_vector = None
+                semantic = {
+                    "available": False,
+                    "reason": exc.reason,
+                    "env": SEMANTIC_ENV_VAR,
+                    "model": embedding_config.model,
+                    "message": str(exc),
+                }
+
     scored = []
     for row in rows:
-        score, matched_terms = score_row(row, query, terms)
+        keyword_score, matched_terms = score_row(row, query, terms)
+        semantic_score = semantic_score_for_row(row, query_vector)
+        score = combined_score(keyword_score, semantic_score)
         if score <= 0:
             continue
-        scored.append((score, row["path"], matched_terms, row))
-    scored.sort(key=lambda item: (-item[0], item[1]))
+        scored.append((score, keyword_score, semantic_score, row["path"], matched_terms, row))
+    scored.sort(key=lambda item: (-item[0], item[3]))
     limited = scored[:limit]
 
     return {
@@ -301,18 +461,21 @@ def search_index(
             "schema_version": metadata.get("schema_version", INDEX_SCHEMA_VERSION),
             "rebuilt_at": metadata.get("rebuilt_at"),
             "memory_count": metadata.get("memory_count", 0),
+            "embedding_count": metadata.get("embedding_count", 0),
+            **optional_metadata(metadata, "embedding_model"),
+            **optional_metadata(metadata, "embedding_dimensions"),
         },
         "retrieval": {
-            "mode": "keyword",
-            "semantic": semantic_status(env or os.environ),
+            "mode": "hybrid" if semantic.get("available") else "keyword",
+            "semantic": semantic,
         },
         "filters": {
             "include_superseded": include_superseded,
             "statuses": ["active", "superseded"] if include_superseded else ["active"],
         },
         "results": [
-            result_from_row(repo_root, row, score, matched_terms)
-            for score, _path, matched_terms, row in limited
+            result_from_row(repo_root, row, score, keyword_score, semantic_score, matched_terms)
+            for score, keyword_score, semantic_score, _path, matched_terms, row in limited
         ],
     }
 
@@ -321,11 +484,36 @@ def read_metadata(connection: sqlite3.Connection) -> dict[str, Any]:
     rows = connection.execute("SELECT key, value FROM metadata").fetchall()
     metadata: dict[str, Any] = {}
     for key, value in rows:
-        if key in {"schema_version", "memory_count"}:
+        if key in {"schema_version", "memory_count", "embedding_count", "embedding_dimensions"}:
             metadata[key] = int(value)
         else:
             metadata[key] = value
     return metadata
+
+
+def ensure_current_schema(repo_root: Path, target: Path, metadata: dict[str, Any]) -> None:
+    found = metadata.get("schema_version")
+    if found == INDEX_SCHEMA_VERSION:
+        return
+    raise BrickIndexError(
+        "Brick index schema is out of date",
+        code="index_schema_mismatch",
+        payload={
+            "status": "error",
+            "reason": "index_schema_mismatch",
+            "message": "Brick index schema is out of date. Run `brick rebuild` first.",
+            "path": relative_to_repo(repo_root, target),
+            "expected_schema_version": INDEX_SCHEMA_VERSION,
+            "found_schema_version": found,
+            "action": "run brick rebuild",
+        },
+    )
+
+
+def optional_metadata(metadata: dict[str, Any], key: str) -> dict[str, Any]:
+    if key not in metadata:
+        return {}
+    return {key: metadata[key]}
 
 
 def read_search_rows(
@@ -338,11 +526,28 @@ def read_search_rows(
     return connection.execute(
         f"""
         SELECT
-            id, path, title, type, status, tags_json, source_json, evidence_json,
-            content_hash, summary, body, search_text, updated_at
+            memories.id,
+            memories.path,
+            memories.title,
+            memories.type,
+            memories.status,
+            memories.tags_json,
+            memories.source_json,
+            memories.evidence_json,
+            memories.content_hash,
+            memories.summary,
+            memories.body,
+            memories.search_text,
+            memories.updated_at,
+            embeddings.model AS embedding_model,
+            embeddings.dimensions AS embedding_dimensions,
+            embeddings.vector_json AS embedding_vector_json
         FROM memories
-        WHERE status IN ({placeholders})
-        ORDER BY path
+        LEFT JOIN embeddings
+            ON embeddings.memory_id = memories.id
+            AND embeddings.content_hash = memories.content_hash
+        WHERE memories.status IN ({placeholders})
+        ORDER BY memories.path
         """,
         statuses,
     ).fetchall()
@@ -379,11 +584,13 @@ def score_row(row: sqlite3.Row, query: str, terms: list[str]) -> tuple[int, list
 def result_from_row(
     repo_root: Path,
     row: sqlite3.Row,
-    score: int,
+    score: float,
+    keyword_score: int,
+    semantic_score: float | None,
     matched_terms: list[str],
 ) -> dict[str, Any]:
     source_path = row["path"]
-    return {
+    result: dict[str, Any] = {
         "id": row["id"],
         "title": row["title"],
         "type": row["type"],
@@ -395,26 +602,225 @@ def result_from_row(
         "evidence": json.loads(row["evidence_json"]),
         "summary": row["summary"],
         "content_hash": row["content_hash"],
-        "score": score,
+        "score": round(score, 6),
+        "keyword_score": keyword_score,
         "confidence": confidence_for_score(score),
         "matched_terms": matched_terms,
     }
+    if semantic_score is not None:
+        result["semantic_score"] = round(semantic_score, 6)
+    return result
 
 
-def semantic_status(env: Mapping[str, str]) -> dict[str, Any]:
-    configured = bool(env.get(SEMANTIC_ENV_VAR, "").strip())
-    if not configured:
+def unavailable_semantic_status(env: Mapping[str, str]) -> dict[str, Any]:
+    if not env.get(SEMANTIC_ENV_VAR, "").strip():
         return {
             "available": False,
             "reason": f"{SEMANTIC_ENV_VAR}_not_configured",
             "env": SEMANTIC_ENV_VAR,
         }
+    if not env.get(EMBEDDING_MODEL_ENV_VAR, "").strip():
+        return {
+            "available": False,
+            "reason": f"{EMBEDDING_MODEL_ENV_VAR}_not_configured",
+            "env": EMBEDDING_MODEL_ENV_VAR,
+        }
     return {
         "available": False,
-        "reason": "embedding_endpoint_not_implemented",
+        "reason": "index_has_no_embeddings",
         "env": SEMANTIC_ENV_VAR,
-        "url_configured": True,
+        "action": "run brick rebuild",
     }
+
+
+def semantic_status_for_index(
+    metadata: dict[str, Any],
+    config: EmbeddingConfig,
+    indexed_embedding_count: int,
+) -> dict[str, Any]:
+    if indexed_embedding_count <= 0:
+        return {
+            "available": False,
+            "reason": "index_has_no_embeddings",
+            "env": SEMANTIC_ENV_VAR,
+            "model": config.model,
+            "action": "run brick rebuild",
+        }
+    indexed_model = metadata.get("embedding_model")
+    if indexed_model != config.model:
+        return {
+            "available": False,
+            "reason": "embedding_model_mismatch",
+            "env": EMBEDDING_MODEL_ENV_VAR,
+            "configured_model": config.model,
+            "indexed_model": indexed_model,
+            "action": "run brick rebuild",
+        }
+    return {
+        "available": True,
+        "env": SEMANTIC_ENV_VAR,
+        "model": config.model,
+        "indexed_count": indexed_embedding_count,
+        "dimensions": metadata.get("embedding_dimensions"),
+    }
+
+
+def configured_embedding(env: Mapping[str, str]) -> EmbeddingConfig | None:
+    raw_url = env.get(SEMANTIC_ENV_VAR, "").strip()
+    model = env.get(EMBEDDING_MODEL_ENV_VAR, "").strip()
+    if not raw_url or not model:
+        return None
+    api_key = env.get(EMBEDDING_API_KEY_ENV_VAR, "").strip() or None
+    return EmbeddingConfig(
+        endpoint_url=embedding_endpoint_url(raw_url),
+        model=model,
+        api_key=api_key,
+    )
+
+
+def embedding_endpoint_url(raw_url: str) -> str:
+    stripped = raw_url.rstrip("/")
+    if stripped.endswith("/embeddings"):
+        return stripped
+    return f"{stripped}/embeddings"
+
+
+def request_embeddings(config: EmbeddingConfig, inputs: list[str]) -> list[list[float]]:
+    if not inputs:
+        return []
+    request_body = json.dumps(
+        {
+            "model": config.model,
+            "input": inputs,
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if config.api_key is not None:
+        headers["Authorization"] = f"Bearer {config.api_key}"
+    request = urllib.request.Request(
+        config.endpoint_url,
+        data=request_body,
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=EMBEDDING_TIMEOUT_SECONDS) as response:
+            response_body = response.read()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise EmbeddingError(
+            "embedding_request_failed",
+            f"embedding endpoint returned HTTP {exc.code}: {detail}",
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise EmbeddingError(
+            "embedding_request_failed",
+            f"embedding endpoint request failed: {exc.reason}",
+        ) from exc
+    except TimeoutError as exc:
+        raise EmbeddingError(
+            "embedding_request_failed",
+            "embedding endpoint request timed out",
+        ) from exc
+
+    try:
+        payload = json.loads(response_body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EmbeddingError(
+            "embedding_response_invalid",
+            "embedding endpoint returned invalid JSON",
+        ) from exc
+    return parse_embedding_response(payload, len(inputs))
+
+
+def parse_embedding_response(payload: Any, expected_count: int) -> list[list[float]]:
+    if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
+        raise EmbeddingError(
+            "embedding_response_invalid",
+            "embedding response must contain a data array",
+        )
+    data = payload["data"]
+    if len(data) != expected_count:
+        raise EmbeddingError(
+            "embedding_response_invalid",
+            f"embedding response returned {len(data)} vectors for {expected_count} inputs",
+        )
+    if all(isinstance(item, dict) and isinstance(item.get("index"), int) for item in data):
+        data = sorted(data, key=lambda item: item["index"])
+    vectors = []
+    for item in data:
+        if not isinstance(item, dict):
+            raise EmbeddingError("embedding_response_invalid", "embedding data items must be objects")
+        embedding = item.get("embedding")
+        if not isinstance(embedding, list) or not embedding:
+            raise EmbeddingError(
+                "embedding_response_invalid",
+                "embedding data items must contain non-empty embedding arrays",
+            )
+        vector = []
+        for value in embedding:
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise EmbeddingError(
+                    "embedding_response_invalid",
+                    "embedding values must be numeric",
+                )
+            vector.append(float(value))
+        vectors.append(vector)
+    validate_embedding_dimensions(vectors)
+    return vectors
+
+
+def validate_embedding_dimensions(vectors: list[list[float]]) -> int:
+    if not vectors:
+        return 0
+    dimensions = len(vectors[0])
+    if dimensions == 0:
+        raise EmbeddingError("embedding_response_invalid", "embedding vectors must not be empty")
+    for vector in vectors:
+        if len(vector) != dimensions:
+            raise EmbeddingError(
+                "embedding_response_invalid",
+                "embedding vectors must all have the same dimensions",
+            )
+    return dimensions
+
+
+def semantic_score_for_row(row: sqlite3.Row, query_vector: list[float] | None) -> float | None:
+    if query_vector is None or row["embedding_vector_json"] is None:
+        return None
+    try:
+        vector = json.loads(row["embedding_vector_json"])
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(vector, list):
+        return None
+    try:
+        memory_vector = [float(value) for value in vector]
+    except (TypeError, ValueError):
+        return None
+    if len(memory_vector) != len(query_vector):
+        return None
+    return cosine_similarity(query_vector, memory_vector)
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    left_norm = math.sqrt(sum(value * value for value in left))
+    right_norm = math.sqrt(sum(value * value for value in right))
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    dot = sum(left_value * right_value for left_value, right_value in zip(left, right, strict=True))
+    return dot / (left_norm * right_norm)
+
+
+def combined_score(keyword_score: int, semantic_score: float | None) -> float:
+    if semantic_score is None:
+        return float(keyword_score)
+    return float(keyword_score) + max(0.0, semantic_score) * HYBRID_SEMANTIC_WEIGHT
 
 
 def index_write_error(repo_root: Path, target: Path, exc: BaseException) -> BrickIndexError:
@@ -465,7 +871,7 @@ def summarize_body(body: str, fallback_title: str) -> str:
     return collapsed[: MAX_SUMMARY_LENGTH - 3].rstrip() + "..."
 
 
-def confidence_for_score(score: int) -> str:
+def confidence_for_score(score: float) -> str:
     if score >= 20:
         return "high"
     if score >= 8:

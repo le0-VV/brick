@@ -391,22 +391,24 @@ SQLite index schema:
 - [x] Use a `memories` table keyed by memory ULID with relative path, title,
   type, status, tags JSON, source JSON, evidence JSON, content hash, summary,
   body, search text, and updated timestamp.
+- [x] Use an `embeddings` table keyed by memory ULID with content hash, model,
+  dimensions, and vector JSON for generated semantic state.
 
 Embedding:
 
 - [x] Use `BRICK_EMBEDDING_URL` as the standard embedding endpoint environment
   variable.
 - [x] Use an OpenAI-compatible embedding endpoint contract for v1.
-- [ ] Define model configuration, likely `BRICK_EMBEDDING_MODEL`.
-- [ ] Support a local system-wide embedding service.
-- [ ] Support API-backed embeddings.
+- [x] Define model configuration as `BRICK_EMBEDDING_MODEL`.
+- [x] Support a local system-wide embedding service.
+- [x] Support API-backed embeddings.
 - [x] Fall back to keyword search when no embedding endpoint or API is
   configured.
 - [x] Clearly report when semantic search is unavailable.
 
 Retrieval:
 
-- [ ] Use hybrid retrieval when embeddings are available.
+- [x] Use hybrid retrieval when embeddings are available.
 - [x] Do not require reranking in v1.
 - [x] Ignore superseded memories by default.
 - [x] Allow explicit retrieval of superseded memories.
@@ -590,16 +592,16 @@ Goal: give agents useful retrieval immediately, even without embeddings.
 - [x] Implement SQLite or simple local file index.
 - [x] Implement `brick rebuild`.
 - [x] Implement keyword fallback search.
-- [ ] Implement optional embedding endpoint integration through
+- [x] Implement optional embedding endpoint integration through
   `BRICK_EMBEDDING_URL`.
-- [ ] Implement OpenAI-compatible embedding requests.
+- [x] Implement OpenAI-compatible embedding requests.
 - [x] Implement `brick memory search`.
 - [x] Implement retrieval context package JSON.
 
 Exit criteria:
 
 - [x] Search works without embeddings.
-- [ ] Semantic search activates when an endpoint is configured.
+- [x] Semantic search activates when an endpoint is configured.
 - [x] Missing semantic capability is reported clearly.
 - [x] Rebuild is deterministic from Markdown.
 
@@ -657,6 +659,7 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 - [x] Add hash stability tests.
 - [x] Add CLI JSON contract tests.
 - [x] Add rebuild/search tests.
+- [x] Add embedding endpoint and hybrid search tests.
 - [ ] Add merge-driver fixture tests.
 - [ ] Add redaction/tombstone tests.
 
@@ -674,9 +677,9 @@ Exit criteria:
 - [x] Define exact content hash canonicalization algorithm.
 - [x] Choose exact secret detector implementation.
 - [x] Choose exact PII detector implementation.
-- [ ] Define exact OpenAI-compatible embedding endpoint request/response
+- [x] Define exact OpenAI-compatible embedding endpoint request/response
   details.
-- [ ] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
+- [x] Decide whether to standardize `BRICK_EMBEDDING_MODEL`.
 - [ ] Refine conflict report fields during implementation without changing the
   accepted v1 baseline shape.
 - [x] Define exact `.gitattributes` and local Git config mutations performed by
