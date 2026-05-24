@@ -121,3 +121,5 @@
 - Setting a repository up to use Brick should be possible by curling an installer/setup script published by Brick.
 - `brick setup` should install or update an `AGENTS.md` containing Brick usage instructions.
 - If a repository already has `AGENTS.md`, Brick setup should back it up and write a new `AGENTS.md` that makes user-reviewed merging of the backup and Brick instructions the first agent task.
+- The proposed conflict report JSON schema in `ROADMAP.md` is approved as the v1 baseline.
+- The licensing model should keep Brick available to indie users and provide a clear path for indie projects that use Brick and later become commercial.
