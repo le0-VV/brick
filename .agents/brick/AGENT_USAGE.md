@@ -45,10 +45,25 @@ After a memory is accepted, rebuild search:
 ./brick rebuild
 ```
 
+## Redacting Memory
+
+If sensitive text has already entered canonical memory, do not edit it by hand.
+Use exact text redaction through Brick:
+
+```sh
+./brick memory redact --pretty < redaction.json
+```
+
+The redaction JSON must include `path`, `redactions`, and `reason`. Brick
+replaces matching text with `[REDACTED]`, appends redaction evidence, marks the
+memory `redacted`, recomputes the hash, validates the file, and rebuilds the
+index by default.
+
 ## Useful Commands
 
 ```sh
 ./brick memory validate --pretty
+./brick memory redact --pretty < redaction.json
 ./brick memory search "release process" --limit 5 --pretty
 ./brick conflicts list --pretty
 ./brick conflicts export <conflict-id> --pretty

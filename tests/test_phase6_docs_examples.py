@@ -49,6 +49,7 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         for command in (
             "./brick setup",
             "./brick memory add",
+            "./brick memory redact",
             "./brick memory search",
             "./brick rebuild",
             "./brick conflicts list",

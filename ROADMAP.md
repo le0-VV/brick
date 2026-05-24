@@ -276,10 +276,10 @@ Secret and PII checks:
 
 Redaction:
 
-- [ ] Provide a redaction flow for sensitive content that slips through.
-- [ ] Replace leaked text with `[REDACTED]`.
-- [ ] Create a tombstone or evidence note explaining why redaction happened.
-- [ ] Rebuild the local index after redaction.
+- [x] Provide a redaction flow for sensitive content that slips through.
+- [x] Replace leaked text with `[REDACTED]`.
+- [x] Create a tombstone or evidence note explaining why redaction happened.
+- [x] Rebuild the local index after redaction.
 
 Blocked candidate response shape:
 
@@ -306,6 +306,7 @@ Command surface:
 
 - [x] Implement `brick setup`.
 - [x] Implement `brick memory add`.
+- [x] Implement `brick memory redact`.
 - [x] Implement `brick memory validate [path]`.
 - [x] Implement `brick memory search "query"`.
 - [x] Implement `brick rebuild`.
@@ -662,7 +663,7 @@ Goal: keep Brick from corrupting or poisoning repo memory.
 - [x] Add embedding endpoint and hybrid search tests.
 - [x] Add merge-driver fixture tests.
 - [x] Add docs and example workflow tests.
-- [ ] Add redaction/tombstone tests.
+- [x] Add redaction/tombstone tests.
 
 Exit criteria:
 

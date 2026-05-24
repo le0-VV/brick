@@ -24,8 +24,10 @@ from brick.index import BrickIndexError, rebuild_index, search_index
 from brick.memory import (
     MemoryAddError,
     MemoryParseError,
+    MemoryRedactError,
     create_memory_from_candidate,
     discover_memory_files,
+    redact_memory_from_candidate,
     validate_memory_paths,
 )
 
@@ -545,7 +547,10 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
         issue_payloads = [issue.to_dict() for issue in exc.issues]
         status = (
             "blocked"
-            if any(issue.get("code") in {"secret_detected", "possible_pii"} for issue in issue_payloads)
+            if any(
+                issue.get("code") in {"secret_detected", "possible_pii"}
+                for issue in issue_payloads
+            )
             else "invalid"
         )
         emit_json(
@@ -560,6 +565,87 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
         return 1
 
     emit_json(result.to_dict(repo_root), args.pretty)
+    return 0
+
+
+def cmd_memory_redact(args: argparse.Namespace) -> int:
+    raw_input = sys.stdin.read()
+    try:
+        candidate = json.loads(raw_input)
+    except json.JSONDecodeError as exc:
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_json",
+                "message": str(exc),
+            },
+            args.pretty,
+        )
+        return 1
+    if not isinstance(candidate, dict):
+        emit_json(
+            {
+                "status": "invalid",
+                "reason": "invalid_redaction",
+                "issues": [
+                    {
+                        "code": "invalid_field_type",
+                        "message": "redaction candidate must be a JSON object",
+                    }
+                ],
+            },
+            args.pretty,
+        )
+        return 1
+
+    try:
+        repo_root = find_repo_root()
+    except BrickError as exc:
+        return emit_error(str(exc), pretty=args.pretty)
+
+    redaction_result = None
+    try:
+        redaction_result = redact_memory_from_candidate(repo_root, candidate)
+        index_result = None
+        if candidate.get("rebuild", True):
+            index_result = rebuild_index(repo_root)
+    except MemoryRedactError as exc:
+        issue_payloads = [issue.to_dict() for issue in exc.issues]
+        status = (
+            "blocked"
+            if any(
+                issue.get("code") in {"secret_detected", "possible_pii"}
+                for issue in issue_payloads
+            )
+            else "invalid"
+        )
+        emit_json(
+            {
+                "status": status,
+                "reason": exc.code,
+                "issues": issue_payloads,
+                "actions": ["redact", "reject"] if status == "blocked" else ["reject"],
+            },
+            args.pretty,
+        )
+        return 1
+    except BrickIndexError as exc:
+        emit_json(
+            {
+                "status": "error",
+                "reason": "redaction_rebuild_failed",
+                "redaction": redaction_result.to_dict(repo_root) if redaction_result else None,
+                "index_error": exc.to_dict(),
+            },
+            args.pretty,
+        )
+        return 1
+
+    payload = redaction_result.to_dict(repo_root)
+    payload["index_rebuilt"] = index_result is not None
+    if index_result is not None:
+        payload["index"] = index_result.to_dict(repo_root)["index"]
+    emit_json(payload, args.pretty)
     return 0
 
 
@@ -655,6 +741,13 @@ def build_parser() -> argparse.ArgumentParser:
     memory_add = memory_subparsers.add_parser("add", help="add a memory from JSON stdin")
     memory_add.add_argument("--pretty", action="store_true", help="pretty-print JSON")
     memory_add.set_defaults(func=cmd_memory_add)
+
+    memory_redact = memory_subparsers.add_parser(
+        "redact",
+        help="redact memory from JSON stdin",
+    )
+    memory_redact.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_redact.set_defaults(func=cmd_memory_redact)
 
     memory_validate = memory_subparsers.add_parser("validate", help="validate memory files")
     memory_validate.add_argument("path", nargs="?")

@@ -24,6 +24,7 @@ ALLOWED_TYPES = {
     "policy",
 }
 ALLOWED_STATUSES = {"active", "superseded", "tombstone", "redacted"}
+REDACTION_REPLACEMENT = "[REDACTED]"
 ADD_ALLOWED_FIELDS = {
     "title",
     "type",
@@ -40,6 +41,7 @@ ADD_ALLOWED_FIELDS = {
     "created_at",
     "updated_at",
 }
+REDACT_ALLOWED_FIELDS = {"path", "redactions", "reason", "rebuild"}
 COMMAND_FIELDS = {"command", "cwd", "when_to_use", "expected_output", "failure_notes"}
 ROUTINE_SKILL_FIELDS = {"steps", "prerequisites", "verify"}
 REQUIRED_FIELDS = {
@@ -57,6 +59,16 @@ REQUIRED_FIELDS = {
 ULID_RE = re.compile(r"^[0-9A-HJKMNP-TV-Z]{26}$")
 CONTENT_HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 CROCKFORD_BASE32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+REDACTION_SKIP_FRONTMATTER_KEYS = {
+    "id",
+    "type",
+    "status",
+    "created_at",
+    "updated_at",
+    "content_hash",
+    "supersedes",
+    "related",
+}
 
 SECRET_PATTERNS = (
     ("private_key", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
@@ -142,6 +154,21 @@ class ValidationIssue:
         return payload
 
 
+class MemoryRedactError(ValueError):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "invalid_redaction",
+        issues: list[ValidationIssue] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.issues = issues or [
+            ValidationIssue(code=code, message=message),
+        ]
+
+
 @dataclass
 class ValidationResult:
     path: Path
@@ -186,6 +213,25 @@ class AddMemoryResult:
             "status": "ok",
             "id": self.memory_id,
             "path": str(self.path.resolve().relative_to(repo_root.resolve())),
+            "validation": self.validation.to_dict(repo_root),
+        }
+
+
+@dataclass
+class RedactMemoryResult:
+    path: Path
+    memory_id: str
+    validation: ValidationResult
+    redaction_count: int
+    replacement_count: int
+
+    def to_dict(self, repo_root: Path) -> dict[str, Any]:
+        return {
+            "status": "ok",
+            "id": self.memory_id,
+            "path": str(self.path.resolve().relative_to(repo_root.resolve())),
+            "redaction_count": self.redaction_count,
+            "replacement_count": self.replacement_count,
             "validation": self.validation.to_dict(repo_root),
         }
 
@@ -406,6 +452,89 @@ def create_memory_from_candidate(
     return AddMemoryResult(path=path, memory_id=frontmatter["id"], validation=validation)
 
 
+def redact_memory_from_candidate(
+    repo_root: Path,
+    candidate: dict[str, Any],
+    *,
+    now: datetime | None = None,
+) -> RedactMemoryResult:
+    validate_redaction_candidate_shape(candidate)
+    path = resolve_memory_path(repo_root, candidate["path"])
+    try:
+        document = load_memory(path)
+    except (OSError, UnicodeDecodeError, MemoryParseError) as exc:
+        raise MemoryRedactError(
+            f"could not load memory for redaction: {exc}",
+            code="memory_load_failed",
+        ) from exc
+
+    frontmatter = clone_json_value(document.frontmatter)
+    if not isinstance(frontmatter, dict):
+        raise MemoryRedactError("memory frontmatter must be a mapping")
+    body = document.body
+    replacement_count = 0
+    for target in candidate["redactions"]:
+        frontmatter, frontmatter_count = redact_frontmatter_value(frontmatter, target)
+        body_count = body.count(target)
+        body = body.replace(target, REDACTION_REPLACEMENT)
+        replacement_count += frontmatter_count + body_count
+
+    if replacement_count == 0:
+        raise MemoryRedactError(
+            "none of the requested redaction text values were found",
+            code="redaction_text_not_found",
+            issues=[
+                ValidationIssue(
+                    code="redaction_text_not_found",
+                    message="none of the requested redaction text values were found",
+                    field="redactions",
+                )
+            ],
+        )
+
+    evidence = frontmatter.get("evidence")
+    if not isinstance(evidence, list):
+        raise MemoryRedactError(
+            "memory evidence must be a list before redaction",
+            code="invalid_existing_memory",
+            issues=[
+                ValidationIssue(
+                    code="invalid_field_type",
+                    message="evidence must be a list before redaction",
+                    field="evidence",
+                )
+            ],
+        )
+    frontmatter["status"] = "redacted"
+    frontmatter["updated_at"] = format_timestamp(now or datetime.now(UTC))
+    evidence.append({"kind": "redaction", "text": candidate["reason"]})
+    frontmatter["evidence"] = evidence
+    frontmatter["content_hash"] = compute_content_hash(frontmatter, body)
+    text = render_memory_text(frontmatter, body)
+    redacted_document = MemoryDocument(
+        path=path,
+        frontmatter=frontmatter,
+        body=body,
+        raw_text=text,
+    )
+    validation = validate_memory(redacted_document)
+    if validation.status != "ok":
+        raise MemoryRedactError(
+            "redacted memory did not pass validation",
+            code=validation.status,
+            issues=validation.issues,
+        )
+
+    path.write_text(text, encoding="utf-8")
+    return RedactMemoryResult(
+        path=path,
+        memory_id=frontmatter["id"],
+        validation=validation,
+        redaction_count=len(candidate["redactions"]),
+        replacement_count=replacement_count,
+    )
+
+
 def build_memory_frontmatter(
     candidate: dict[str, Any],
     *,
@@ -535,6 +664,154 @@ def validate_candidate_shape(candidate: dict[str, Any]) -> None:
     validate_candidate_fields(candidate, issues)
     if issues:
         raise MemoryAddError("invalid memory candidate", issues=issues)
+
+
+def validate_redaction_candidate_shape(candidate: dict[str, Any]) -> None:
+    issues: list[ValidationIssue] = []
+    unknown_fields = sorted(set(candidate) - REDACT_ALLOWED_FIELDS)
+    for field_name in unknown_fields:
+        issues.append(
+            ValidationIssue(
+                code="unknown_field",
+                message=f"unknown top-level field {field_name}",
+                field=field_name,
+            )
+        )
+
+    for field_name in ("path", "redactions", "reason"):
+        if field_name not in candidate:
+            issues.append(
+                ValidationIssue(
+                    code="missing_required_field",
+                    message=f"missing required redaction field {field_name}",
+                    field=field_name,
+                )
+            )
+
+    if "path" in candidate:
+        if not isinstance(candidate["path"], str):
+            issues.append(invalid_candidate_type("path", "string"))
+        elif not candidate["path"].strip():
+            issues.append(
+                ValidationIssue(
+                    code="empty_field",
+                    message="path must not be empty",
+                    field="path",
+                )
+            )
+    if "redactions" in candidate:
+        redactions = candidate["redactions"]
+        if not isinstance(redactions, list) or not redactions:
+            issues.append(
+                invalid_candidate_type("redactions", "non-empty list of strings")
+            )
+        elif not all(isinstance(item, str) and item for item in redactions):
+            issues.append(
+                invalid_candidate_type("redactions", "non-empty list of strings")
+            )
+    if "reason" in candidate:
+        if not isinstance(candidate["reason"], str):
+            issues.append(invalid_candidate_type("reason", "string"))
+        elif not candidate["reason"].strip():
+            issues.append(
+                ValidationIssue(
+                    code="empty_field",
+                    message="reason must not be empty",
+                    field="reason",
+                )
+            )
+    if "rebuild" in candidate and not isinstance(candidate["rebuild"], bool):
+        issues.append(invalid_candidate_type("rebuild", "boolean"))
+
+    if issues:
+        raise MemoryRedactError("invalid redaction candidate", issues=issues)
+
+
+def resolve_memory_path(repo_root: Path, path_text: str) -> Path:
+    repo_root = repo_root.resolve()
+    path = Path(path_text)
+    if not path.is_absolute():
+        path = repo_root / path
+    path = path.resolve()
+    try:
+        relative = path.relative_to(repo_root)
+    except ValueError as exc:
+        raise MemoryRedactError(
+            "redaction path must stay inside the repository",
+            code="path_outside_repo",
+            issues=[
+                ValidationIssue(
+                    code="path_outside_repo",
+                    message="redaction path must stay inside the repository",
+                    field="path",
+                )
+            ],
+        ) from exc
+    if relative.parts[:2] != (".agents", "memory") or path.suffix != ".md":
+        raise MemoryRedactError(
+            "redaction path must point to a canonical memory Markdown file",
+            code="invalid_memory_path",
+            issues=[
+                ValidationIssue(
+                    code="invalid_memory_path",
+                    message="redaction path must point under .agents/memory/ and end in .md",
+                    field="path",
+                )
+            ],
+        )
+    if not path.is_file():
+        raise MemoryRedactError(
+            f"memory file does not exist: {path}",
+            code="memory_not_found",
+            issues=[
+                ValidationIssue(
+                    code="memory_not_found",
+                    message="memory file does not exist",
+                    field="path",
+                )
+            ],
+        )
+    return path
+
+
+def clone_json_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: clone_json_value(child) for key, child in value.items()}
+    if isinstance(value, list):
+        return [clone_json_value(item) for item in value]
+    return value
+
+
+def redact_frontmatter_value(
+    value: Any,
+    target: str,
+    key: str | None = None,
+) -> tuple[Any, int]:
+    if key in REDACTION_SKIP_FRONTMATTER_KEYS:
+        return value, 0
+    if isinstance(value, str):
+        return value.replace(target, REDACTION_REPLACEMENT), value.count(target)
+    if isinstance(value, list):
+        redacted_items = []
+        replacement_count = 0
+        for item in value:
+            redacted_item, item_count = redact_frontmatter_value(item, target)
+            redacted_items.append(redacted_item)
+            replacement_count += item_count
+        return redacted_items, replacement_count
+    if isinstance(value, dict):
+        redacted_mapping = {}
+        replacement_count = 0
+        for child_key, child_value in value.items():
+            redacted_child, child_count = redact_frontmatter_value(
+                child_value,
+                target,
+                child_key,
+            )
+            redacted_mapping[child_key] = redacted_child
+            replacement_count += child_count
+        return redacted_mapping, replacement_count
+    return value, 0
 
 
 def validate_candidate_fields(candidate: dict[str, Any], issues: list[ValidationIssue]) -> None:

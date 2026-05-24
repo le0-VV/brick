@@ -26,6 +26,7 @@ After setup:
 ```sh
 ./brick memory search "project conventions" --pretty
 ./brick memory add < .agents/brick/examples/memory-add/decision.json
+./brick memory redact < redaction.json
 ./brick rebuild
 ./brick conflicts list --pretty
 ```
@@ -44,6 +45,8 @@ files.
 - Canonical memory lives under `.agents/memory/<type>/` as Markdown with
   constrained YAML frontmatter.
 - Agents add memory through `./brick memory add` using JSON stdin.
+- Agents redact leaked sensitive memory through `./brick memory redact` using
+  JSON stdin with exact text values to replace with `[REDACTED]`.
 - `./brick memory validate` checks schema, hashes, evidence, secrets, and PII.
 - `./brick rebuild` regenerates `.agents/brick/index/brick.sqlite3`.
 - `./brick memory search` uses keyword search by default and hybrid semantic
