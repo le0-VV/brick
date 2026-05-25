@@ -4,3 +4,4 @@
 .agents/brick/conflicts/
 .agents/brick/config.local.json
 __pycache__/
+*.pyc

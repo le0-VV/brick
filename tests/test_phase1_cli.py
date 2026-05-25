@@ -48,6 +48,14 @@ class Phase1SetupTests(unittest.TestCase):
         gitignore = (repo / ".gitignore").read_text()
         self.assertIn(".agents/brick/.venv/", gitignore)
         self.assertIn(".agents/brick/config.local.json", gitignore)
+        self.assertIn("__pycache__/", gitignore)
+        self.assertIn("*.pyc", gitignore)
+        subprocess.run(
+            ["git", "check-ignore", ".agents/brick/src/brick/__pycache__/cli.pyc"],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         local_config = json.loads((repo / ".agents/brick/config.local.json").read_text())
         self.assertEqual(local_config["embedding"]["url"], "")
         self.assertEqual(local_config["embedding"]["model"], "")

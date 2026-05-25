@@ -43,6 +43,8 @@ GITIGNORE_ENTRIES = (
     ".agents/brick/index/",
     ".agents/brick/conflicts/",
     ".agents/brick/config.local.json",
+    "__pycache__/",
+    "*.pyc",
 )
 GITATTRIBUTES_ENTRY = ".agents/memory/**/*.md merge=brick-memory"
 BRICK_VENV_RELATIVE_PATH = Path(".agents/brick/.venv")
