@@ -87,6 +87,31 @@ class Phase3MemoryAddTests(unittest.TestCase):
         self.assertEqual(document.frontmatter["title"], "Hybrid retrieval decision")
         self.assertTrue(document.frontmatter["content_hash"].startswith("sha256:"))
 
+    def test_memory_add_round_trips_numeric_metadata(self) -> None:
+        repo = make_repo(self)
+
+        completed = run_memory_add(
+            repo,
+            base_candidate(
+                source={"kind": "file", "path": ".agents/MEMORIES.md", "line": 42},
+                evidence=[
+                    {
+                        "kind": "file_excerpt",
+                        "path": ".agents/MEMORIES.md",
+                        "line": 42,
+                        "text": "Evidence with a numeric source line.",
+                    }
+                ],
+            ),
+        )
+
+        payload = json.loads(completed.stdout)
+        self.assertEqual(completed.returncode, 0, payload)
+        validation = run_memory_validate(repo, payload["path"])
+        validation_payload = json.loads(validation.stdout)
+        self.assertEqual(validation.returncode, 0)
+        self.assertEqual(validation_payload["status"], "ok")
+
     def test_memory_add_rejects_non_json(self) -> None:
         repo = make_repo(self)
 

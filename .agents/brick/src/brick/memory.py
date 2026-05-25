@@ -571,8 +571,18 @@ def build_memory_frontmatter(
     for key in sorted(fields):
         frontmatter[key] = fields[key]
 
-    frontmatter["content_hash"] = compute_content_hash(frontmatter, body)
-    return frontmatter, body
+    return storage_frontmatter(frontmatter, body), body
+
+
+def storage_frontmatter(frontmatter: dict[str, Any], body: str) -> dict[str, Any]:
+    normalized = clone_json_value(frontmatter)
+    if not isinstance(normalized, dict):
+        raise MemoryAddError("memory frontmatter must be a mapping")
+    normalized.pop("content_hash", None)
+    text = render_memory_text(normalized, body)
+    parsed = parse_frontmatter(split_frontmatter(text)[0])
+    parsed["content_hash"] = compute_content_hash(parsed, body)
+    return parsed
 
 
 def validate_candidate_shape(candidate: dict[str, Any]) -> None:
