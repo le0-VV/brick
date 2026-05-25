@@ -10,8 +10,8 @@ well enough for another agent to continue from the repository alone.
 
 ## Checklist Rules
 
-- [ ] Keep `ROADMAP.md` aligned with `.agents/MEMORIES.md` when product
-  decisions change.
+- [ ] Keep `ROADMAP.md` aligned with canonical Brick memory under
+  `.agents/memory/` when product decisions change.
 - [ ] Keep `.agents/TODO.md` scoped to the current work session.
 - [ ] Mark roadmap implementation tasks complete only after verification.
 - [ ] Prefer adding concrete follow-up tasks over leaving vague TODO prose.
