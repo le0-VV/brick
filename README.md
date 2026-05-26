@@ -1,10 +1,10 @@
 # Brick
 
-Brick is repo-local memory tooling for agentic development. Canonical memory is
-Markdown in the repository, while search indexes, embeddings, and conflict
-reports are generated local state.
+Brick is a per-repo git-compatible semantic memory tooling for agentic development. Canonical memory is Markdown in the repository, while search indexes, embeddings, and conflict reports are generated local state.
 
-> "Im calling it brick because fuck naming."
+> "I'm calling it brick because fuck naming. And you can quote me on that."
+>
+> -- Leonard, 2026
 
 ## Quickstart
 
@@ -32,14 +32,9 @@ After setup:
 ./brick conflicts propose <conflict-id> < proposal.json
 ```
 
-Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under
-`.agents/brick/examples/` so agents can discover the workflow from repository
-files.
+Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under `.agents/brick/examples/` so agents can discover the workflow from repository files.
 
-`brick setup` also owns Brick's local Python environment at
-`.agents/brick/.venv`. It prefers `uv` when available, falls back to Python
-`venv` plus `pip`, and installs dependencies declared in
-`.agents/brick/pyproject.toml`.
+`brick setup` also owns Brick's local Python environment at `.agents/brick/.venv`. It prefers `uv` when available, falls back to Python `venv` plus `pip`, and installs dependencies declared in `.agents/brick/pyproject.toml`.
 
 ## Memory Model
 
@@ -55,21 +50,19 @@ files.
 - `./brick merge-driver` only auto-resolves exact or fast-forward-safe cases;
   otherwise it writes review reports under `.agents/brick/conflicts/`.
 - Agents can attach proposed conflict resolutions through `./brick conflicts
-  propose`; this updates only the local report and still requires human review.
+propose`; this updates only the local report and still requires human review.
 
 ## Embeddings
 
-Semantic search is optional. `brick setup` creates a gitignored, device-local
-config file at `.agents/brick/config.local.json`. Configure an OpenAI-compatible
-embeddings endpoint there:
+Semantic search is optional. `brick setup` creates a gitignored, device-local config file at `.agents/brick/config.local.json`. Configure an OpenAI-compatible embeddings endpoint there:
 
 ```json
 {
-  "embedding": {
-    "url": "http://127.0.0.1:1234/v1",
-    "model": "text-embedding-model",
-    "api_key_env": "BRICK_EMBEDDING_API_KEY"
-  }
+    "embedding": {
+        "url": "http://127.0.0.1:1234/v1",
+        "model": "text-embedding-model",
+        "api_key_env": "BRICK_EMBEDDING_API_KEY"
+    }
 }
 ```
 
@@ -79,13 +72,8 @@ Then rebuild:
 ./brick rebuild
 ```
 
-`embedding.url` may be either a base URL ending in `/v1` or a full
-`/embeddings` endpoint. Do not put API keys directly in the local config; put
-the environment variable name in `embedding.api_key_env`. The
-`BRICK_EMBEDDING_URL`, `BRICK_EMBEDDING_MODEL`, and `BRICK_EMBEDDING_API_KEY`
-environment variables override the local file when set.
+`embedding.url` may be either a base URL ending in `/v1` or a full `/embeddings` endpoint. Do not put API keys directly in the local config; put the environment variable name in `embedding.api_key_env`. The `BRICK_EMBEDDING_URL`, `BRICK_EMBEDDING_MODEL`, and `BRICK_EMBEDDING_API_KEY` environment variables override the local file when set.
 
 ## Release Scope
 
-The v1 target is local-first, free for everyone, Apache-2.0 licensed, and
-agent-runtime agnostic. See `ROADMAP.md` for the implementation checklist.
+The v1 target is local-first, free for everyone, Apache-2.0 licensed, and agent-runtime agnostic. See `ROADMAP.md` for the implementation checklist.
