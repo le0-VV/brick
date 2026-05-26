@@ -45,6 +45,8 @@ class Phase6DocsExamplesTests(unittest.TestCase):
     def test_readme_and_agent_usage_document_core_workflows(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         usage = (ROOT / ".agents/brick/AGENT_USAGE.md").read_text(encoding="utf-8")
+        rendered_readme = " ".join(readme.split())
+        rendered_usage = " ".join(usage.split())
 
         for command in (
             "./brick setup",
@@ -61,7 +63,8 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn(".agents/brick/config.local.json", usage)
         self.assertIn("embedding.url", usage)
         self.assertIn("embedding.model", usage)
-        self.assertIn("ask the", usage)
+        self.assertIn("important setup question", rendered_readme)
+        self.assertIn("important setup question", rendered_usage)
         self.assertIn("keyword-only", usage)
 
     def test_example_memory_files_validate(self) -> None:

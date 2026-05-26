@@ -48,7 +48,13 @@ When a user asks you to set up Brick in a project:
     ./brick memory search "project context" --pretty
     ```
 
-4. Check whether semantic retrieval is configured. Brick reads `embedding.url` and `embedding.model` from the gitignored device-local file `.agents/brick/config.local.json`. If either field is blank, ask the user whether they want semantic retrieval for this machine. If they opt in, ask for the embedding server URL and model name, write both values to the local config file, and run `./brick rebuild`. If they opt out, tell them Brick search is keyword-only.
+4. Check whether semantic retrieval is configured. Brick reads `embedding.url`
+    and `embedding.model` from the gitignored device-local file
+    `.agents/brick/config.local.json`. After first setup, if there is no clear
+    user answer on whether to use semantic retrieval, ask it as an important
+    setup question. If the user opts in, ask for the embedding server URL and
+    model name, write both values to the local config file, and run `./brick
+    rebuild`. If they opt out, tell them Brick search is keyword-only.
 
 5. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, make user-reviewed merging of the old and new agent instructions the first follow-up task.
 

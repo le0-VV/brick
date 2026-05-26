@@ -12,12 +12,13 @@ or merge-review memory may affect your work.
    `.agents/brick/pyproject.toml`.
 2. Check whether semantic retrieval is configured for this machine. Brick reads
    `embedding.url` and `embedding.model` from the gitignored
-   `.agents/brick/config.local.json` file. If either field is blank, ask the
-   user whether they want semantic retrieval for this machine. If they opt in,
-   ask for the embedding server URL and model name, write both values to the
-   local config file, and run `./brick rebuild`. If they opt out, `./brick
-   memory search` still works, but it is keyword-only; report that limitation
-   before relying on retrieval quality.
+   `.agents/brick/config.local.json` file. After first setup, if there is no
+   clear user answer on whether to use semantic retrieval, ask it as an
+   important setup question. If the user opts in, ask for the embedding server
+   URL and model name, write both values to the local config file, and run
+   `./brick rebuild`. If they opt out, `./brick memory search` still works, but
+   it is keyword-only; report that limitation before relying on retrieval
+   quality.
 3. Search memory before relying on assumptions:
 
    ```sh
