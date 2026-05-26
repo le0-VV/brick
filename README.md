@@ -18,32 +18,19 @@ Prerequisites:
 - Optional but recommended: `uv`, which Brick uses when available to create
   `.agents/brick/.venv` and install dependencies faster.
 
-From a published raw Brick checkout or release:
+Normal install, once Brick is hosted:
 
 ```sh
 cd /path/to/project-that-should-use-brick
-export BRICK_SOURCE_BASE_URL=<raw URL base for this Brick release>
+export BRICK_SOURCE_BASE_URL=https://raw.githubusercontent.com/le0-VV/brick/main
 curl -fsSL "$BRICK_SOURCE_BASE_URL/install.sh" | sh
 ```
 
-From a local Brick checkout:
+Local development install from this checkout:
 
 ```sh
 cd /path/to/project-that-should-use-brick
 /path/to/brick/install.sh
-```
-
-For machine-readable setup output:
-
-```sh
-/path/to/brick/install.sh --json --pretty
-```
-
-For agent tests or constrained environments where dependency installation is
-handled separately:
-
-```sh
-/path/to/brick/install.sh --skip-venv --json --pretty
 ```
 
 The installer copies Brick into `.agents/brick/`, makes `./brick` point at
