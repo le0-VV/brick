@@ -27,8 +27,8 @@ from brick.memory import (
 INDEX_SCHEMA_VERSION = 2
 INDEX_RELATIVE_PATH = Path(".agents/brick/index/brick.sqlite3")
 LOCAL_CONFIG_RELATIVE_PATH = Path(".agents/brick/config.local.json")
-SEMANTIC_ENV_VAR = "BRICK_EMBEDDING_URL"
-EMBEDDING_MODEL_ENV_VAR = "BRICK_EMBEDDING_MODEL"
+EMBEDDING_URL_FIELD = "embedding.url"
+EMBEDDING_MODEL_FIELD = "embedding.model"
 EMBEDDING_API_KEY_ENV_VAR = "BRICK_EMBEDDING_API_KEY"
 EMBEDDING_TIMEOUT_SECONDS = 30
 HYBRID_SEMANTIC_WEIGHT = 20.0
@@ -447,7 +447,6 @@ def search_index(
                     semantic = {
                         "available": False,
                         "reason": "embedding_dimension_mismatch",
-                        "env": SEMANTIC_ENV_VAR,
                         "config_path": local_config_relative_path(repo_root),
                         "model": embedding_config.model,
                         "indexed_dimensions": indexed_dimensions,
@@ -460,7 +459,6 @@ def search_index(
                 semantic = {
                     "available": False,
                     "reason": exc.reason,
-                    "env": SEMANTIC_ENV_VAR,
                     "config_path": local_config_relative_path(repo_root),
                     "model": embedding_config.model,
                     "message": str(exc),
@@ -641,21 +639,20 @@ def unavailable_semantic_status(repo_root: Path, env: Mapping[str, str]) -> dict
     if not settings.raw_url:
         return {
             "available": False,
-            "reason": f"{SEMANTIC_ENV_VAR}_not_configured",
-            "env": SEMANTIC_ENV_VAR,
+            "reason": "embedding_url_not_configured",
             "config_path": local_config_relative_path(repo_root),
+            "field": EMBEDDING_URL_FIELD,
         }
     if not settings.model:
         return {
             "available": False,
-            "reason": f"{EMBEDDING_MODEL_ENV_VAR}_not_configured",
-            "env": EMBEDDING_MODEL_ENV_VAR,
+            "reason": "embedding_model_not_configured",
             "config_path": local_config_relative_path(repo_root),
+            "field": EMBEDDING_MODEL_FIELD,
         }
     return {
         "available": False,
         "reason": "index_has_no_embeddings",
-        "env": SEMANTIC_ENV_VAR,
         "config_path": local_config_relative_path(repo_root),
         "action": "run brick rebuild",
     }
@@ -671,7 +668,6 @@ def semantic_status_for_index(
         return {
             "available": False,
             "reason": "index_has_no_embeddings",
-            "env": SEMANTIC_ENV_VAR,
             "config_path": local_config_relative_path(repo_root),
             "model": config.model,
             "action": "run brick rebuild",
@@ -681,15 +677,14 @@ def semantic_status_for_index(
         return {
             "available": False,
             "reason": "embedding_model_mismatch",
-            "env": EMBEDDING_MODEL_ENV_VAR,
             "config_path": local_config_relative_path(repo_root),
+            "field": EMBEDDING_MODEL_FIELD,
             "configured_model": config.model,
             "indexed_model": indexed_model,
             "action": "run brick rebuild",
         }
     return {
         "available": True,
-        "env": SEMANTIC_ENV_VAR,
         "config_path": local_config_relative_path(repo_root),
         "model": config.model,
         "indexed_count": indexed_embedding_count,
@@ -711,12 +706,10 @@ def configured_embedding(repo_root: Path, env: Mapping[str, str]) -> EmbeddingCo
 def embedding_settings(repo_root: Path, env: Mapping[str, str]) -> EmbeddingSettings:
     local = load_local_embedding_config(repo_root)
     api_key_env = local.api_key_env or EMBEDDING_API_KEY_ENV_VAR
-    api_key = env.get(EMBEDDING_API_KEY_ENV_VAR, "").strip()
-    if not api_key and api_key_env != EMBEDDING_API_KEY_ENV_VAR:
-        api_key = env.get(api_key_env, "").strip()
+    api_key = env.get(api_key_env, "").strip()
     return EmbeddingSettings(
-        raw_url=env.get(SEMANTIC_ENV_VAR, "").strip() or local.url,
-        model=env.get(EMBEDDING_MODEL_ENV_VAR, "").strip() or local.model,
+        raw_url=local.url,
+        model=local.model,
         api_key_env=api_key_env,
         api_key=api_key or None,
     )

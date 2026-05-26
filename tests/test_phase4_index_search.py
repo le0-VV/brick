@@ -205,7 +205,7 @@ class Phase4IndexSearchTests(unittest.TestCase):
         self.assertFalse(payload["retrieval"]["semantic"]["available"])
         self.assertEqual(
             payload["retrieval"]["semantic"]["reason"],
-            "BRICK_EMBEDDING_URL_not_configured",
+            "embedding_url_not_configured",
         )
         self.assertEqual(
             payload["retrieval"]["semantic"]["config_path"],
@@ -271,12 +271,22 @@ class Phase4IndexSearchTests(unittest.TestCase):
             tags=["vectors"],
             body="Bravo content points in a different embedding direction.",
         )
+        config_path = repo / index.LOCAL_CONFIG_RELATIVE_PATH
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        config_path.write_text(
+            json.dumps(
+                {
+                    "embedding": {
+                        "url": "http://embedding.example/v1",
+                        "model": "fake-embedding-model",
+                        "api_key_env": "BRICK_EMBEDDING_API_KEY",
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
 
-        env = {
-            "BRICK_EMBEDDING_URL": "http://embedding.example/v1",
-            "BRICK_EMBEDDING_MODEL": "fake-embedding-model",
-            "BRICK_EMBEDDING_API_KEY": "test-key",
-        }
+        env = {"BRICK_EMBEDDING_API_KEY": "test-key"}
         embedding_calls: list[tuple[index.EmbeddingConfig, list[str]]] = []
 
         def fake_request_embeddings(
@@ -370,8 +380,19 @@ class Phase4IndexSearchTests(unittest.TestCase):
         self.assertEqual(embedding_calls[0][0].api_key, "local-key")
         self.assertEqual(embedding_calls[1][1], ["semantic-only"])
 
-    def test_embedding_env_overrides_device_local_config(self) -> None:
+    def test_embedding_url_and_model_must_come_from_device_local_config(self) -> None:
         repo = make_repo(self)
+
+        self.assertIsNone(
+            index.configured_embedding(
+                repo,
+                {
+                    "BRICK_EMBEDDING_URL": "http://env-embedding.example/v1",
+                    "BRICK_EMBEDDING_MODEL": "env-embedding-model",
+                },
+            )
+        )
+
         config_path = repo / index.LOCAL_CONFIG_RELATIVE_PATH
         config_path.parent.mkdir(parents=True, exist_ok=True)
         config_path.write_text(
@@ -399,9 +420,9 @@ class Phase4IndexSearchTests(unittest.TestCase):
 
         self.assertIsNotNone(config)
         assert config is not None
-        self.assertEqual(config.endpoint_url, "http://env-embedding.example/v1/embeddings")
-        self.assertEqual(config.model, "env-embedding-model")
-        self.assertEqual(config.api_key, "env-key")
+        self.assertEqual(config.endpoint_url, "http://local-embedding.example/v1/embeddings")
+        self.assertEqual(config.model, "local-embedding-model")
+        self.assertEqual(config.api_key, "local-key")
 
     def test_local_embedding_config_rejects_literal_api_key(self) -> None:
         repo = make_repo(self)

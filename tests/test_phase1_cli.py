@@ -64,8 +64,11 @@ class Phase1SetupTests(unittest.TestCase):
         agents = (repo / "AGENTS.md").read_text()
         self.assertIn(cli.BRICK_AGENT_MARKER, agents)
         self.assertIn(".agents/brick/config.local.json", agents)
-        self.assertIn("BRICK_EMBEDDING_URL", agents)
-        self.assertIn("BRICK_EMBEDDING_MODEL", agents)
+        self.assertIn("embedding.url", agents)
+        self.assertIn("embedding.model", agents)
+        self.assertIn("ask the user whether they want semantic retrieval", agents)
+        self.assertNotIn("BRICK_EMBEDDING_URL", agents)
+        self.assertNotIn("BRICK_EMBEDDING_MODEL", agents)
         self.assertIn("keyword-only", agents)
 
         driver = subprocess.run(

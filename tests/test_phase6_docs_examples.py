@@ -56,11 +56,12 @@ class Phase6DocsExamplesTests(unittest.TestCase):
             "./brick conflicts propose",
         ):
             self.assertIn(command, readme + usage)
-        self.assertIn("Im calling it brick because fuck naming.", readme)
+        self.assertIn("I'm calling it brick because fuck naming.", readme)
         self.assertIn(".agents/brick/config.local.json", readme)
         self.assertIn(".agents/brick/config.local.json", usage)
-        self.assertIn("BRICK_EMBEDDING_URL", usage)
-        self.assertIn("BRICK_EMBEDDING_MODEL", usage)
+        self.assertIn("embedding.url", usage)
+        self.assertIn("embedding.model", usage)
+        self.assertIn("ask the", usage)
         self.assertIn("keyword-only", usage)
 
     def test_example_memory_files_validate(self) -> None:
