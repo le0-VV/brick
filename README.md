@@ -8,20 +8,69 @@ Brick is a per-repo git-compatible semantic memory tooling for agentic developme
 
 ## Quickstart
 
-From a repository that should use Brick:
+Brick is installed into each repository that should carry its own memory bank.
+Run the installer from inside the target Git worktree.
+
+Prerequisites:
+
+- Git.
+- Python 3.11+ for the repo-local Brick environment.
+- Optional but recommended: `uv`, which Brick uses when available to create
+  `.agents/brick/.venv` and install dependencies faster.
+
+From a published raw Brick checkout or release:
 
 ```sh
-export BRICK_SOURCE_BASE_URL=<raw Brick release URL>
+cd /path/to/project-that-should-use-brick
+export BRICK_SOURCE_BASE_URL=<raw URL base for this Brick release>
 curl -fsSL "$BRICK_SOURCE_BASE_URL/install.sh" | sh
 ```
 
-From this checkout, bootstrap another local Git repository with:
+From a local Brick checkout:
 
 ```sh
-/path/to/brick/install.sh --skip-venv --json
+cd /path/to/project-that-should-use-brick
+/path/to/brick/install.sh
 ```
 
-After setup:
+For machine-readable setup output:
+
+```sh
+/path/to/brick/install.sh --json --pretty
+```
+
+For agent tests or constrained environments where dependency installation is
+handled separately:
+
+```sh
+/path/to/brick/install.sh --skip-venv --json --pretty
+```
+
+The installer copies Brick into `.agents/brick/`, makes `./brick` point at
+`.agents/brick/bin/brick`, then runs `./brick setup`.
+
+Setup creates or repairs:
+
+- `.agents/memory/<type>/` canonical memory directories.
+- `.agents/brick/index/` and `.agents/brick/conflicts/` generated state
+  directories.
+- `.agents/brick/config.local.json`, which is gitignored and device-local.
+- `.gitignore` entries for generated Brick state.
+- `.gitattributes` entry for the Brick memory merge driver.
+- Local Git merge-driver config.
+- `AGENTS.md` Brick instructions. If an existing non-Brick `AGENTS.md` is
+  present, setup backs it up to `AGENTS.md.brick-backup` and asks agents to make
+  user-reviewed merging the first task.
+- `.agents/brick/.venv`, unless `--skip-venv` is used.
+
+Re-run setup any time the copied Brick tooling, root symlink, dependency
+environment, generated directories, or Git config look incomplete:
+
+```sh
+./brick setup
+```
+
+After setup, typical agent commands are:
 
 ```sh
 ./brick memory search "project conventions" --pretty
@@ -32,9 +81,14 @@ After setup:
 ./brick conflicts propose <conflict-id> < proposal.json
 ```
 
-Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under `.agents/brick/examples/` so agents can discover the workflow from repository files.
+Brick setup installs `.agents/brick/AGENT_USAGE.md` and examples under
+`.agents/brick/examples/` so agents can discover the workflow from repository
+files.
 
-`brick setup` also owns Brick's local Python environment at `.agents/brick/.venv`. It prefers `uv` when available, falls back to Python `venv` plus `pip`, and installs dependencies declared in `.agents/brick/pyproject.toml`.
+`brick setup` also owns Brick's local Python environment at
+`.agents/brick/.venv`. It prefers `uv` when available, falls back to Python
+`venv` plus `pip`, and installs dependencies declared in
+`.agents/brick/pyproject.toml`.
 
 ## Memory Model
 
