@@ -87,7 +87,11 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn("confirm_public", candidate_schema["required"])
         self.assertIn("source", candidate_schema["required"])
         self.assertIn("evidence", candidate_schema["required"])
+        self.assertNotIn("fields", candidate_schema["properties"])
         self.assertIn("Write the memory body as one concise", instructions)
+        self.assertIn('phrase "remember that" is only a signal', instructions)
+        self.assertIn("A direct user statement is valid evidence", instructions)
+        self.assertIn("Do not emit `fields`", instructions)
         self.assertIn("If `action` is `clarify`, ask", instructions)
         self.assertIn("./brick memory add", instructions)
 

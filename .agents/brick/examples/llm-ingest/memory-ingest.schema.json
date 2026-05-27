@@ -149,10 +149,6 @@
             },
             "confirm_public": {
               "type": "boolean"
-            },
-            "fields": {
-              "type": "object",
-              "description": "Optional Brick type-specific fields for command, routine, or skill memories."
             }
           }
         }

@@ -17,7 +17,15 @@ Return one ingest decision:
 Do not add memories for one-off commands, temporary test facts, generic
 assistant explanations, guesses, or statements that only describe the current
 turn. If the user corrects an earlier fact, keep only the latest durable
-version. If the user says not to remember something, reject that item.
+version. If the user says not to remember something, reject that item. The
+phrase "remember that" is only a signal to consider memory; do not preserve that
+phrase in the memory body and do not reject durable content merely because the
+user used those words.
+
+A direct user statement is valid evidence. If the user explicitly asks to save
+or remember durable project context, choose `add` unless the content is
+transient, unsafe, already superseded, or genuinely ambiguous. Do not require
+the assistant to add new information before saving a user-provided durable fact.
 
 ## Candidate Rules
 
@@ -51,6 +59,15 @@ excerpts, commit/PR/issue references, or agent work summaries with enough
 detail for maintainers to judge trust. Set `confirm_public` to `true` only when
 the user explicitly confirms the content is safe for the repository's intended
 audience.
+
+Keep `source.ref` as a short locator such as `current conversation`,
+`work summary`, a file path, a commit hash, or a PR/issue reference. Do not put
+quoted source text or role labels such as `User:` or `Assistant:` in
+`source.ref`; quoted text belongs only in `evidence`.
+
+Do not emit `fields` in LLM output. The reviewing agent may add Brick's
+type-specific `fields` manually for command, routine, or skill memories when
+the structure is clear.
 
 ## Agent Review
 
