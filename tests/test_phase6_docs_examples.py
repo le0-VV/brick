@@ -66,6 +66,30 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn("important setup question", rendered_readme)
         self.assertIn("important setup question", rendered_usage)
         self.assertIn("keyword-only", usage)
+        self.assertIn("llm-ingest/instructions.md", usage)
+        self.assertIn("memory-ingest.schema.json", usage)
+        self.assertIn("add", usage)
+        self.assertIn("clarify", usage)
+        self.assertIn("reject", usage)
+
+    def test_llm_ingest_schema_guides_reviewable_candidates(self) -> None:
+        schema_path = ROOT / ".agents/brick/examples/llm-ingest/memory-ingest.schema.json"
+        instructions = (
+            ROOT / ".agents/brick/examples/llm-ingest/instructions.md"
+        ).read_text(encoding="utf-8")
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(schema["additionalProperties"], False)
+        self.assertEqual(schema["properties"]["action"]["enum"], ["add", "clarify", "reject"])
+        self.assertIn("candidate", schema["required"])
+        candidate_schema = schema["properties"]["candidate"]["anyOf"][1]
+        self.assertEqual(candidate_schema["additionalProperties"], False)
+        self.assertIn("confirm_public", candidate_schema["required"])
+        self.assertIn("source", candidate_schema["required"])
+        self.assertIn("evidence", candidate_schema["required"])
+        self.assertIn("Write the memory body as one concise", instructions)
+        self.assertIn("If `action` is `clarify`, ask", instructions)
+        self.assertIn("./brick memory add", instructions)
 
     def test_example_memory_files_validate(self) -> None:
         completed = run_brick(

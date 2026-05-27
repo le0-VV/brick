@@ -49,6 +49,14 @@ Valid candidates need:
 - No possible PII unless the user has explicitly confirmed it is public with
   `confirm_public: true`.
 
+When using an LLM to compose memory, use
+`.agents/brick/examples/llm-ingest/instructions.md` and constrain the response
+with `.agents/brick/examples/llm-ingest/memory-ingest.schema.json` when the LLM
+endpoint supports JSON Schema output. The LLM should return an ingest decision:
+`add`, `clarify`, or `reject`. Only pass the nested `candidate` object to
+`./brick memory add` after agent review. Do not add memory when the LLM returns
+`clarify` or `reject`; ask the user or skip the write.
+
 After a memory is accepted, rebuild search:
 
 ```sh
@@ -111,4 +119,6 @@ the final canonical memory must still be accepted by a human.
 - `memory-add/routine.json`: valid routine candidate with steps.
 - `memory-add/skill.json`: valid skill candidate with steps.
 - `memory-add/blocked-unsafe.json`: unsafe example that Brick should reject.
+- `llm-ingest/instructions.md`: agent rules for LLM-assisted memory ingest.
+- `llm-ingest/memory-ingest.schema.json`: JSON Schema for LLM ingest decisions.
 - `memory-files/*.md`: rendered examples of canonical Markdown memory files.

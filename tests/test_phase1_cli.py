@@ -71,6 +71,8 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertNotIn("BRICK_EMBEDDING_URL", agents)
         self.assertNotIn("BRICK_EMBEDDING_MODEL", agents)
         self.assertIn("keyword-only", agents)
+        self.assertIn(".agents/brick/examples/llm-ingest/instructions.md", agents)
+        self.assertIn("memory-ingest.schema.json", agents)
 
         driver = subprocess.run(
             ["git", "config", "--local", "--get", "merge.brick-memory.driver"],
@@ -267,6 +269,10 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / ".agents/brick/AGENT_USAGE.md").is_file())
         self.assertTrue((repo / ".agents/brick/config.example.json").is_file())
         self.assertTrue((repo / ".agents/brick/config.local.json").is_file())
+        self.assertTrue((repo / ".agents/brick/examples/llm-ingest/instructions.md").is_file())
+        self.assertTrue(
+            (repo / ".agents/brick/examples/llm-ingest/memory-ingest.schema.json").is_file()
+        )
         self.assertTrue((repo / ".agents/brick/examples/memory-add/decision.json").is_file())
         self.assertTrue((repo / "brick").is_symlink())
         self.assertIn(cli.BRICK_AGENT_MARKER, (repo / "AGENTS.md").read_text())
