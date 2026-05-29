@@ -3,5 +3,6 @@
 .agents/brick/index/
 .agents/brick/conflicts/
 .agents/brick/config.local.json
+.vscode/
 __pycache__/
 *.pyc
