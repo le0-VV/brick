@@ -19,7 +19,7 @@ copy_from_checkout() {
   if [ "$source_dir" = "$repo_root" ]; then
     return
   fi
-  mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick
+  mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick .agents/brick/templates
   cp "$source_dir/.agents/brick/bin/brick" .agents/brick/bin/brick
   cp "$source_dir/.agents/brick/AGENT_USAGE.md" .agents/brick/AGENT_USAGE.md
   cp "$source_dir/.agents/brick/config.example.json" .agents/brick/config.example.json
@@ -36,6 +36,7 @@ copy_from_checkout() {
   cp "$source_dir/.agents/brick/examples/memory-files/decision.md" .agents/brick/examples/memory-files/decision.md
   cp "$source_dir/.agents/brick/examples/memory-files/routine.md" .agents/brick/examples/memory-files/routine.md
   cp "$source_dir/.agents/brick/examples/memory-files/skill.md" .agents/brick/examples/memory-files/skill.md
+  cp "$source_dir/.agents/brick/templates/AGENTS.md" .agents/brick/templates/AGENTS.md
   cp "$source_dir/.agents/brick/src/brick/__init__.py" .agents/brick/src/brick/__init__.py
   cp "$source_dir/.agents/brick/src/brick/cli.py" .agents/brick/src/brick/cli.py
   cp "$source_dir/.agents/brick/src/brick/conflicts.py" .agents/brick/src/brick/conflicts.py
@@ -45,7 +46,7 @@ copy_from_checkout() {
 
 fetch_from_base_url() {
   base_url="${BRICK_SOURCE_BASE_URL%/}"
-  mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick
+  mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick .agents/brick/templates
   curl -fsSL "$base_url/.agents/brick/bin/brick" -o .agents/brick/bin/brick
   curl -fsSL "$base_url/.agents/brick/AGENT_USAGE.md" -o .agents/brick/AGENT_USAGE.md
   curl -fsSL "$base_url/.agents/brick/config.example.json" -o .agents/brick/config.example.json
@@ -62,6 +63,7 @@ fetch_from_base_url() {
   curl -fsSL "$base_url/.agents/brick/examples/memory-files/decision.md" -o .agents/brick/examples/memory-files/decision.md
   curl -fsSL "$base_url/.agents/brick/examples/memory-files/routine.md" -o .agents/brick/examples/memory-files/routine.md
   curl -fsSL "$base_url/.agents/brick/examples/memory-files/skill.md" -o .agents/brick/examples/memory-files/skill.md
+  curl -fsSL "$base_url/.agents/brick/templates/AGENTS.md" -o .agents/brick/templates/AGENTS.md
   curl -fsSL "$base_url/.agents/brick/src/brick/__init__.py" -o .agents/brick/src/brick/__init__.py
   curl -fsSL "$base_url/.agents/brick/src/brick/cli.py" -o .agents/brick/src/brick/cli.py
   curl -fsSL "$base_url/.agents/brick/src/brick/conflicts.py" -o .agents/brick/src/brick/conflicts.py

@@ -72,6 +72,7 @@ MEMORY_TYPES = (
 )
 AGENTS_BACKUP_NAME = "AGENTS.md.brick-backup"
 BRICK_AGENT_MARKER = "<!-- brick-agent-instructions:v1 -->"
+AGENTS_TEMPLATE_RELATIVE_PATH = Path(".agents/brick/templates/AGENTS.md")
 DEPENDENCY_PATTERN = re.compile(r"""["']([^"']+)["']""")
 
 
@@ -179,84 +180,32 @@ def ensure_local_config(repo_root: Path, result: SetupResult) -> None:
     result.actions.append(f"created {config_path.relative_to(result.repo_root)}")
 
 
-def brick_agents_text(has_backup: bool) -> str:
-    first_task = (
-        f"- First task: ask the user to review and merge `{AGENTS_BACKUP_NAME}` "
-        "with these Brick instructions before doing other project work.\n"
-        if has_backup
-        else ""
-    )
-    return (
-        "# Instructions for all agents\n\n"
-        f"{BRICK_AGENT_MARKER}\n\n"
-        "## Agent Discipline\n\n"
-        "- Do not modify `AGENTS.md` unless the user explicitly asks.\n"
-        "- Use the same language as the user's message.\n"
-        "- Break problems into concrete steps and work through them logically.\n"
-        "- If a question or concern blocks safe progress, clarify with the user "
-        "immediately.\n"
-        "- Before non-trivial work, write or refresh a checklist in "
-        "`.agents/TODO.md`, follow it, and tick items off as they complete.\n"
-        "- Record extra repo instructions you discover.\n"
-        "- Read a file fully before editing it.\n"
-        "- Keep comments rare and useful; explain constraints or why, not "
-        "obvious mechanics.\n"
-        "- Keep diffs narrow and task-focused.\n"
-        "- Do not guess at attribute names, control flow, or config behavior.\n"
-        "- Prefer fail-fast behavior over silent fallback logic unless the user "
-        "explicitly asks otherwise.\n"
-        "- Add tests for new behavior unless the change is strictly docs or "
-        "metadata cleanup.\n"
-        "- For non-trivial or long-running work, preserve direction in "
-        "`ROADMAP.md` and current state in `.agents/TODO.md`.\n"
-        "- If delegating to subagents, keep each subagent in its own branch or "
-        "worktree, do not let subagents spawn nested subagents unless the user "
-        "asks, and have the main agent review and integrate their work.\n"
-        "- Commit each completed logical unit once the repo is verified and the "
-        "staged changes are coherent.\n\n"
-        "## Brick Memory\n\n"
-        f"{first_task}"
-        "- Read `.agents/brick/AGENT_USAGE.md` for Brick command workflows and "
-        "example memory payloads.\n"
-        "- Run `./brick setup` if Brick tooling, generated directories, or Git "
-        "configuration appear incomplete.\n"
-        "- Before relying on Brick semantic retrieval, check whether "
-        "`.agents/brick/config.local.json` has `embedding.url` and "
-        "`embedding.model`. After first setup, if there is no clear user "
-        "answer on whether to use semantic retrieval, ask it as an important "
-        "setup question. If the user opts in, ask for the embedding server URL "
-        "and model name, write both values to the local config file, and run "
-        "`./brick rebuild`. If they opt out, report that Brick search is "
-        "keyword-only.\n"
-        "- Search memory before relying on assumptions: `./brick memory search "
-        "\"<query>\"`.\n"
-        "- Add or update memory only through Brick commands; do not hand-edit "
-        "canonical memory files unless the user explicitly asks.\n"
-        "- When using an LLM to compose memory, follow "
-        "`.agents/brick/examples/llm-ingest/instructions.md` and prefer the "
-        "schema at `.agents/brick/examples/llm-ingest/memory-ingest.schema.json`; "
-        "only pass reviewed `candidate` objects to `./brick memory add`.\n"
-        "- Treat memory candidates that contain secrets or possible PII as "
-        "blocked until Brick validates or the user confirms public content.\n"
-        "- Keep generated Brick state under `.agents/brick/index/` and "
-        "`.agents/brick/conflicts/` out of Git.\n"
-    )
+def brick_agents_text(repo_root: Path) -> str:
+    template_path = repo_root / AGENTS_TEMPLATE_RELATIVE_PATH
+    try:
+        return template_path.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise BrickError(
+            f"Brick AGENTS.md template is missing: {template_path}. "
+            "Re-run the Brick installer, then run `./brick setup` again."
+        ) from exc
 
 
 def ensure_agents_file(repo_root: Path, result: SetupResult) -> None:
     agents_path = repo_root / "AGENTS.md"
     backup_path = repo_root / AGENTS_BACKUP_NAME
+    desired = brick_agents_text(repo_root)
     if not agents_path.exists():
-        agents_path.write_text(brick_agents_text(False), encoding="utf-8")
+        agents_path.write_text(desired, encoding="utf-8")
         result.actions.append("created AGENTS.md with Brick instructions")
         return
 
     current = agents_path.read_text(encoding="utf-8")
+    if current == desired:
+        return
     if BRICK_AGENT_MARKER in current:
-        desired = brick_agents_text(backup_path.exists())
-        if current != desired:
-            agents_path.write_text(desired, encoding="utf-8")
-            result.actions.append("updated Brick AGENTS.md instructions")
+        agents_path.write_text(desired, encoding="utf-8")
+        result.actions.append("updated Brick AGENTS.md instructions")
         return
 
     if backup_path.exists():
@@ -265,7 +214,7 @@ def ensure_agents_file(repo_root: Path, result: SetupResult) -> None:
             "already exists; refusing to overwrite either file."
         )
     backup_path.write_text(current, encoding="utf-8")
-    agents_path.write_text(brick_agents_text(True), encoding="utf-8")
+    agents_path.write_text(desired, encoding="utf-8")
     result.actions.append(f"backed up AGENTS.md to {AGENTS_BACKUP_NAME}")
     result.actions.append("installed Brick AGENTS.md instructions")
 

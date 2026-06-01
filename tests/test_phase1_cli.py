@@ -18,6 +18,10 @@ from brick import __version__
 from brick import cli
 
 
+def root_agents_text() -> str:
+    return (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+
 class Phase1SetupTests(unittest.TestCase):
     def make_empty_repo(self) -> Path:
         temp_dir = tempfile.TemporaryDirectory()
@@ -32,6 +36,9 @@ class Phase1SetupTests(unittest.TestCase):
         bin_dir.mkdir(parents=True)
         executable = bin_dir / "brick"
         executable.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+        template = repo / cli.AGENTS_TEMPLATE_RELATIVE_PATH
+        template.parent.mkdir(parents=True)
+        template.write_text(root_agents_text(), encoding="utf-8")
         return repo
 
     def test_setup_repo_creates_phase1_files(self) -> None:
@@ -62,26 +69,18 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertEqual(local_config["embedding"]["api_key_env"], "BRICK_EMBEDDING_API_KEY")
         self.assertIn(cli.GITATTRIBUTES_ENTRY, (repo / ".gitattributes").read_text())
         agents = (repo / "AGENTS.md").read_text()
-        self.assertIn(cli.BRICK_AGENT_MARKER, agents)
-        self.assertIn("## Agent Discipline", agents)
-        self.assertIn("Do not modify `AGENTS.md` unless the user explicitly asks.", agents)
-        self.assertIn("Use the same language as the user's message.", agents)
+        self.assertEqual(agents, root_agents_text())
+        self.assertNotIn(cli.BRICK_AGENT_MARKER, agents)
+        self.assertIn("**DO NOT**, unless explicitly instructed by the user", agents)
+        self.assertIn("Always use the language of the user's message.", agents)
         self.assertIn("`.agents/TODO.md`", agents)
         self.assertIn("Read a file fully before editing it.", agents)
         self.assertIn("Keep diffs narrow and task-focused.", agents)
-        self.assertIn("Do not guess at attribute names, control flow, or config behavior.", agents)
-        self.assertIn("If delegating to subagents", agents)
+        self.assertIn("Do not guess at attribute names, control flow, or config behaviour.", agents)
+        self.assertIn("When delegating work to subagents is available", agents)
         self.assertIn("Commit each completed logical unit", agents)
-        self.assertIn(".agents/brick/config.local.json", agents)
-        self.assertIn("embedding.url", agents)
-        self.assertIn("embedding.model", agents)
-        self.assertIn("important setup question", agents)
-        self.assertIn("no clear user answer", agents)
         self.assertNotIn("BRICK_EMBEDDING_URL", agents)
         self.assertNotIn("BRICK_EMBEDDING_MODEL", agents)
-        self.assertIn("keyword-only", agents)
-        self.assertIn(".agents/brick/examples/llm-ingest/instructions.md", agents)
-        self.assertIn("memory-ingest.schema.json", agents)
 
         driver = subprocess.run(
             ["git", "config", "--local", "--get", "merge.brick-memory.driver"],
@@ -101,8 +100,20 @@ class Phase1SetupTests(unittest.TestCase):
         backup = (repo / cli.AGENTS_BACKUP_NAME).read_text(encoding="utf-8")
         agents = (repo / "AGENTS.md").read_text(encoding="utf-8")
         self.assertEqual(backup, "Existing project instructions.\n")
-        self.assertIn("First task", agents)
-        self.assertIn(cli.AGENTS_BACKUP_NAME, agents)
+        self.assertEqual(agents, root_agents_text())
+
+    def test_setup_repo_updates_legacy_brick_agents_file(self) -> None:
+        repo = self.make_repo()
+        (repo / "AGENTS.md").write_text(
+            f"{cli.BRICK_AGENT_MARKER}\nLegacy Brick instructions.\n",
+            encoding="utf-8",
+        )
+
+        result = cli.setup_repo(repo, skip_venv=True)
+
+        self.assertIn("updated Brick AGENTS.md instructions", result.actions)
+        self.assertEqual((repo / "AGENTS.md").read_text(encoding="utf-8"), root_agents_text())
+        self.assertFalse((repo / cli.AGENTS_BACKUP_NAME).exists())
 
     def test_cli_setup_emits_json(self) -> None:
         repo = self.make_repo()
@@ -283,8 +294,12 @@ class Phase1SetupTests(unittest.TestCase):
             (repo / ".agents/brick/examples/llm-ingest/memory-ingest.schema.json").is_file()
         )
         self.assertTrue((repo / ".agents/brick/examples/memory-add/decision.json").is_file())
+        self.assertEqual(
+            (repo / ".agents/brick/templates/AGENTS.md").read_text(encoding="utf-8"),
+            root_agents_text(),
+        )
         self.assertTrue((repo / "brick").is_symlink())
-        self.assertIn(cli.BRICK_AGENT_MARKER, (repo / "AGENTS.md").read_text())
+        self.assertEqual((repo / "AGENTS.md").read_text(encoding="utf-8"), root_agents_text())
 
     def test_memory_add_without_json_returns_invalid_json(self) -> None:
         completed = subprocess.run(

@@ -56,6 +56,6 @@ When a user asks you to set up Brick in a project:
     model name, write both values to the local config file, and run `./brick
     rebuild`. If they opt out, tell them Brick search is keyword-only.
 
-5. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, make user-reviewed merging of the old and new agent instructions the first follow-up task.
+5. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
 
 6. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
