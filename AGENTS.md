@@ -4,7 +4,7 @@
 - When given a problem, break it down into smaller, actionable steps, and work through each step logically.
 - Always use the language of the user's message.
 - Record any memory and extra instructions through Brick with `./brick memory add`; do not write memory files directly unless Brick is broken and the user approves the fallback.
-- Never rely on assumptions about prior work; search Brick memory with `./brick memory search "query" --pretty` or clarify with the user.
+- Never rely on assumptions about prior work; search Brick memory with `./brick memory search "query"` or clarify with the user.
 - If you have questions or concerns that block safe progress, clarify with the user immediately.
 - When delegating work to subagents is available, prefer delegating work to subagents.
 - Subagents must working in their own git branch or worktree with clear ownership, separate from the main branch
@@ -13,7 +13,7 @@
 - Before doing any work, write a concrete plan in `.agents/TODO.md` as a check list and follow it.
 - Tick off the relevant item in `.agents/TODO.md` as its completed to keep track of progress.
 - Record any extra instructions present in the repo.
-- After updating Brick memory, validate with `./brick memory validate --pretty`, rebuild retrieval state with `./brick rebuild --pretty` when needed, and commit only the resulting memory changes as a coherent `docs(memory): ...` commit.
+- After updating Brick memory, validate with `./brick memory validate`, rebuild retrieval state with `./brick rebuild` when needed, and commit only the resulting memory changes as a coherent `docs(memory): ...` commit.
 - For non-trivial or long-running work, preserve direction in `ROADMAP.md` and current state in `.agents/TODO.md`.
 - Read a file fully before editing it.
 - Keep comments rare and useful. Explain why or constraints, not obvious mechanics.
@@ -28,6 +28,6 @@
 - Use the global git email unless the user explicitly instructs otherwise.
 - Write commit messages as `{type}({scope}): {description}`; use `docs(memory): ...` for dedicated Brick memory commits.
 - Use one of these commit types: `build`, `chore`, `CI`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`.
-    1. Never rely on assumptions about prior work; search Brick memory with `./brick memory search "query" --pretty` or clarify with the user.
+    1. Never rely on assumptions about prior work; search Brick memory with `./brick memory search "query"` or clarify with the user.
     2. Combine project context and clear reasoning to answer with concrete details.
     3. Keep answers direct and actionable.
