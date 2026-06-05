@@ -40,7 +40,16 @@ When a user asks you to set up Brick in a project:
     curl -fsSL https://github.com/le0-VV/brick/raw/refs/heads/main/install.sh | sh
     ```
 
-3. Verify setup.
+3. If `.agents/TODO.md` exists, make sure it is not tracked. Preserve the
+    local file and remove it only from Git's index when needed.
+
+    ```sh
+    if [ -f .agents/TODO.md ] && git ls-files --error-unmatch .agents/TODO.md >/dev/null 2>&1; then
+      git rm --cached -- .agents/TODO.md
+    fi
+    ```
+
+4. Verify setup.
 
     ```sh
     ./brick setup --json --pretty
@@ -48,7 +57,7 @@ When a user asks you to set up Brick in a project:
     ./brick memory search "project context" --pretty
     ```
 
-4. Check whether semantic retrieval is configured. Brick reads `embedding.url`
+5. Check whether semantic retrieval is configured. Brick reads `embedding.url`
     and `embedding.model` from the gitignored device-local file
     `.agents/brick/config.local.json`. After first setup, if there is no clear
     user answer on whether to use semantic retrieval, ask it as an important
@@ -56,6 +65,6 @@ When a user asks you to set up Brick in a project:
     model name, write both values to the local config file, and run `./brick
     rebuild`. If they opt out, tell them Brick search is keyword-only.
 
-5. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
+6. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
 
-6. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/TODO.md`, `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
+7. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/TODO.md`, `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
