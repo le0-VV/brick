@@ -53,10 +53,17 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / ".agents/brick/conflicts").is_dir())
         self.assertTrue((repo / ".agents/memory/decision").is_dir())
         gitignore = (repo / ".gitignore").read_text()
+        self.assertIn(".agents/TODO.md", gitignore)
         self.assertIn(".agents/brick/.venv/", gitignore)
         self.assertIn(".agents/brick/config.local.json", gitignore)
         self.assertIn("__pycache__/", gitignore)
         self.assertIn("*.pyc", gitignore)
+        subprocess.run(
+            ["git", "check-ignore", ".agents/TODO.md"],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         subprocess.run(
             ["git", "check-ignore", ".agents/brick/src/brick/__pycache__/cli.pyc"],
             cwd=repo,
@@ -285,6 +292,12 @@ class Phase1SetupTests(unittest.TestCase):
 
         payload = json.loads(completed.stdout)
         self.assertEqual(payload["status"], "ok")
+        subprocess.run(
+            ["git", "check-ignore", ".agents/TODO.md"],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         self.assertTrue((repo / ".agents/brick/bin/brick").is_file())
         self.assertTrue((repo / ".agents/brick/AGENT_USAGE.md").is_file())
         self.assertTrue((repo / ".agents/brick/config.example.json").is_file())

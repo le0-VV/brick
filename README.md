@@ -58,4 +58,4 @@ When a user asks you to set up Brick in a project:
 
 5. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
 
-6. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
+6. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/TODO.md`, `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
