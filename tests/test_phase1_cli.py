@@ -56,6 +56,7 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertIn(".agents/TODO.md", gitignore)
         self.assertIn(".agents/brick/.venv/", gitignore)
         self.assertIn(".agents/brick/config.local.json", gitignore)
+        self.assertIn(".agents/brick/update-state.json", gitignore)
         self.assertIn("__pycache__/", gitignore)
         self.assertIn("*.pyc", gitignore)
         subprocess.run(
@@ -70,6 +71,17 @@ class Phase1SetupTests(unittest.TestCase):
             check=True,
             stdout=subprocess.PIPE,
         )
+        subprocess.run(
+            ["git", "check-ignore", ".agents/brick/update-state.json"],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
+        source_config = json.loads((repo / ".agents/brick/source.json").read_text())
+        self.assertEqual(source_config["base_url"], cli.DEFAULT_BRICK_SOURCE_BASE_URL)
+        update_state = json.loads((repo / ".agents/brick/update-state.json").read_text())
+        self.assertEqual(update_state["base_url"], cli.DEFAULT_BRICK_SOURCE_BASE_URL)
+        self.assertEqual(update_state["status"], "initialized")
         local_config = json.loads((repo / ".agents/brick/config.local.json").read_text())
         self.assertEqual(local_config["embedding"]["url"], "")
         self.assertEqual(local_config["embedding"]["model"], "")
@@ -108,6 +120,11 @@ class Phase1SetupTests(unittest.TestCase):
         ).stdout.strip()
         self.assertEqual(driver, "./brick merge-driver %O %A %B %L %P")
 
+    def test_package_manifest_matches_updater_file_list(self) -> None:
+        manifest = json.loads((ROOT / cli.BRICK_PACKAGE_MANIFEST_RELATIVE_PATH).read_text())
+
+        self.assertEqual(manifest["files"], [path.as_posix() for path in cli.UPSTREAM_PACKAGE_FILES])
+
     def test_setup_repo_backs_up_existing_agents_file(self) -> None:
         repo = self.make_repo()
         (repo / "AGENTS.md").write_text("Existing project instructions.\n", encoding="utf-8")
@@ -131,6 +148,76 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertIn("updated Brick AGENTS.md instructions", result.actions)
         self.assertEqual((repo / "AGENTS.md").read_text(encoding="utf-8"), root_agents_text())
         self.assertFalse((repo / cli.AGENTS_BACKUP_NAME).exists())
+
+    def test_setup_repo_updates_brick_package_from_upstream_once_per_day(self) -> None:
+        repo = self.make_repo()
+        source_path = repo / cli.BRICK_SOURCE_RELATIVE_PATH
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(
+            json.dumps({"base_url": "https://brick.example/raw"}),
+            encoding="utf-8",
+        )
+        (repo / cli.BRICK_UPDATE_STATE_RELATIVE_PATH).write_text(
+            json.dumps(
+                {
+                    "base_url": "https://brick.example/raw",
+                    "checked_at": "2026-01-01T00:00:00Z",
+                    "status": "ok",
+                }
+            ),
+            encoding="utf-8",
+        )
+        upstream_text = "# Updated upstream usage\n"
+
+        with mock.patch.object(
+            cli,
+            "fetch_upstream_package_files",
+            return_value={Path(".agents/brick/AGENT_USAGE.md"): upstream_text.encode("utf-8")},
+        ) as fetch:
+            result = cli.setup_repo(repo, skip_venv=True)
+
+        fetch.assert_called_once_with("https://brick.example/raw")
+        self.assertEqual((repo / ".agents/brick/AGENT_USAGE.md").read_text(), upstream_text)
+        self.assertIn("updated Brick package from upstream (1 files changed)", result.actions)
+        update_state = json.loads((repo / cli.BRICK_UPDATE_STATE_RELATIVE_PATH).read_text())
+        self.assertEqual(update_state["base_url"], "https://brick.example/raw")
+        self.assertEqual(update_state["status"], "ok")
+
+        with mock.patch.object(cli, "fetch_upstream_package_files") as fetch_again:
+            cli.setup_repo(repo, skip_venv=True)
+
+        fetch_again.assert_not_called()
+
+    def test_setup_repo_warns_when_upstream_update_fails(self) -> None:
+        repo = self.make_repo()
+        source_path = repo / cli.BRICK_SOURCE_RELATIVE_PATH
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(
+            json.dumps({"base_url": "https://brick.example/raw"}),
+            encoding="utf-8",
+        )
+        (repo / cli.BRICK_UPDATE_STATE_RELATIVE_PATH).write_text(
+            json.dumps(
+                {
+                    "base_url": "https://brick.example/raw",
+                    "checked_at": "2026-01-01T00:00:00Z",
+                    "status": "ok",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with mock.patch.object(
+            cli,
+            "fetch_upstream_package_files",
+            side_effect=cli.BrickError("network unavailable"),
+        ):
+            result = cli.setup_repo(repo, skip_venv=True)
+
+        self.assertIn("upstream Brick update failed: network unavailable", result.warnings)
+        update_state = json.loads((repo / cli.BRICK_UPDATE_STATE_RELATIVE_PATH).read_text())
+        self.assertEqual(update_state["status"], "error")
+        self.assertIn("network unavailable", update_state["error"])
 
     def test_cli_setup_emits_json(self) -> None:
         repo = self.make_repo()
@@ -312,6 +399,15 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / ".agents/brick/AGENT_USAGE.md").is_file())
         self.assertTrue((repo / ".agents/brick/config.example.json").is_file())
         self.assertTrue((repo / ".agents/brick/config.local.json").is_file())
+        self.assertTrue((repo / ".agents/brick/package-files.json").is_file())
+        self.assertTrue((repo / ".agents/brick/source.json").is_file())
+        self.assertTrue((repo / ".agents/brick/update-state.json").is_file())
+        subprocess.run(
+            ["git", "check-ignore", ".agents/brick/update-state.json"],
+            cwd=repo,
+            check=True,
+            stdout=subprocess.PIPE,
+        )
         self.assertTrue((repo / ".agents/brick/examples/llm-ingest/instructions.md").is_file())
         self.assertTrue(
             (repo / ".agents/brick/examples/llm-ingest/memory-ingest.schema.json").is_file()

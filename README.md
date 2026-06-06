@@ -57,7 +57,12 @@ When a user asks you to set up Brick in a project:
     ./brick memory search "project context" --pretty
     ```
 
-5. Check whether semantic retrieval is configured. Brick reads `embedding.url`
+5. Know that `./brick setup` checks upstream Brick at most once per day using
+    `.agents/brick/source.json`, then writes the gitignored local check state to
+    `.agents/brick/update-state.json`. If upstream package files change, review
+    and commit the updated Brick files as part of the setup change.
+
+6. Check whether semantic retrieval is configured. Brick reads `embedding.url`
     and `embedding.model` from the gitignored device-local file
     `.agents/brick/config.local.json`. After first setup, if there is no clear
     user answer on whether to use semantic retrieval, ask it as an important
@@ -65,6 +70,6 @@ When a user asks you to set up Brick in a project:
     model name, write both values to the local config file, and run `./brick
     rebuild`. If they opt out, tell them Brick search is keyword-only.
 
-6. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
+7. If setup backs up an existing `AGENTS.md` to `AGENTS.md.brick-backup`, review the backup with the user before merging any old project-specific instructions back into the new file.
 
-7. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/TODO.md`, `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, or `.agents/brick/config.local.json`.
+8. Commit only the coherent Brick setup files when the repository is verified. Do not commit `.agents/TODO.md`, `.agents/brick/.venv/`, `.agents/brick/index/`, `.agents/brick/conflicts/`, `.agents/brick/config.local.json`, or `.agents/brick/update-state.json`.

@@ -14,12 +14,17 @@ fi
 
 cd "$repo_root"
 
+default_source_base_url="https://github.com/le0-VV/brick/raw/refs/heads/main"
+installed_source_base_url="$default_source_base_url"
+
 copy_from_checkout() {
   source_dir="$1"
   if [ "$source_dir" = "$repo_root" ]; then
     return
   fi
   mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick .agents/brick/templates
+  cp "$source_dir/.agents/brick/package-files.json" .agents/brick/package-files.json
+  cp "$source_dir/.agents/brick/source.json" .agents/brick/source.json
   cp "$source_dir/.agents/brick/bin/brick" .agents/brick/bin/brick
   cp "$source_dir/.agents/brick/AGENT_USAGE.md" .agents/brick/AGENT_USAGE.md
   cp "$source_dir/.agents/brick/config.example.json" .agents/brick/config.example.json
@@ -46,7 +51,10 @@ copy_from_checkout() {
 
 fetch_from_base_url() {
   base_url="${BRICK_SOURCE_BASE_URL%/}"
+  installed_source_base_url="$base_url"
   mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick .agents/brick/templates
+  curl -fsSL "$base_url/.agents/brick/package-files.json" -o .agents/brick/package-files.json
+  curl -fsSL "$base_url/.agents/brick/source.json" -o .agents/brick/source.json
   curl -fsSL "$base_url/.agents/brick/bin/brick" -o .agents/brick/bin/brick
   curl -fsSL "$base_url/.agents/brick/AGENT_USAGE.md" -o .agents/brick/AGENT_USAGE.md
   curl -fsSL "$base_url/.agents/brick/config.example.json" -o .agents/brick/config.example.json
@@ -71,6 +79,27 @@ fetch_from_base_url() {
   curl -fsSL "$base_url/.agents/brick/src/brick/memory.py" -o .agents/brick/src/brick/memory.py
 }
 
+write_update_state() {
+  base_url="$1"
+  checked_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  cat > .agents/brick/update-state.json <<EOF
+{
+  "base_url": "$base_url",
+  "checked_at": "$checked_at",
+  "status": "ok"
+}
+EOF
+}
+
+write_source_config() {
+  base_url="$1"
+  cat > .agents/brick/source.json <<EOF
+{
+  "base_url": "$base_url"
+}
+EOF
+}
+
 script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || true)"
 if [ -n "$script_dir" ] && [ -f "$script_dir/.agents/brick/bin/brick" ]; then
   copy_from_checkout "$script_dir"
@@ -81,5 +110,7 @@ else
   exit 2
 fi
 
+write_source_config "$installed_source_base_url"
+write_update_state "$installed_source_base_url"
 chmod +x .agents/brick/bin/brick .agents/brick/setup.py
 .agents/brick/bin/brick setup "$@"

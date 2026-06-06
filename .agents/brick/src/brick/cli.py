@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import UTC, datetime, timedelta
 import json
 import os
 import re
@@ -11,6 +12,8 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Sequence
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 from venv import EnvBuilder
 
 from brick import __version__
@@ -44,12 +47,18 @@ GITIGNORE_ENTRIES = (
     ".agents/brick/index/",
     ".agents/brick/conflicts/",
     ".agents/brick/config.local.json",
+    ".agents/brick/update-state.json",
     "__pycache__/",
     "*.pyc",
 )
 GITATTRIBUTES_ENTRY = ".agents/memory/**/*.md merge=brick-memory"
 BRICK_VENV_RELATIVE_PATH = Path(".agents/brick/.venv")
 BRICK_PYPROJECT_RELATIVE_PATH = Path(".agents/brick/pyproject.toml")
+BRICK_SOURCE_RELATIVE_PATH = Path(".agents/brick/source.json")
+BRICK_PACKAGE_MANIFEST_RELATIVE_PATH = Path(".agents/brick/package-files.json")
+BRICK_UPDATE_STATE_RELATIVE_PATH = Path(".agents/brick/update-state.json")
+DEFAULT_BRICK_SOURCE_BASE_URL = "https://github.com/le0-VV/brick/raw/refs/heads/main"
+UPSTREAM_UPDATE_INTERVAL = timedelta(days=1)
 LOCAL_CONFIG_TEMPLATE = (
     '{\n'
     '  "embedding": {\n'
@@ -58,6 +67,41 @@ LOCAL_CONFIG_TEMPLATE = (
     '    "api_key_env": "BRICK_EMBEDDING_API_KEY"\n'
     '  }\n'
     '}\n'
+)
+SOURCE_CONFIG_TEMPLATE = (
+    '{\n'
+    f'  "base_url": "{DEFAULT_BRICK_SOURCE_BASE_URL}"\n'
+    '}\n'
+)
+UPSTREAM_PACKAGE_FILES = (
+    BRICK_PACKAGE_MANIFEST_RELATIVE_PATH,
+    BRICK_SOURCE_RELATIVE_PATH,
+    Path(".agents/brick/bin/brick"),
+    Path(".agents/brick/AGENT_USAGE.md"),
+    Path(".agents/brick/config.example.json"),
+    Path(".agents/brick/setup.py"),
+    Path(".agents/brick/pyproject.toml"),
+    Path(".agents/brick/examples/llm-ingest/instructions.md"),
+    Path(".agents/brick/examples/llm-ingest/memory-ingest.schema.json"),
+    Path(".agents/brick/examples/memory-add/blocked-unsafe.json"),
+    Path(".agents/brick/examples/memory-add/command.json"),
+    Path(".agents/brick/examples/memory-add/decision.json"),
+    Path(".agents/brick/examples/memory-add/routine.json"),
+    Path(".agents/brick/examples/memory-add/skill.json"),
+    Path(".agents/brick/examples/memory-files/command.md"),
+    Path(".agents/brick/examples/memory-files/decision.md"),
+    Path(".agents/brick/examples/memory-files/routine.md"),
+    Path(".agents/brick/examples/memory-files/skill.md"),
+    Path(".agents/brick/templates/AGENTS.md"),
+    Path(".agents/brick/src/brick/__init__.py"),
+    Path(".agents/brick/src/brick/cli.py"),
+    Path(".agents/brick/src/brick/conflicts.py"),
+    Path(".agents/brick/src/brick/index.py"),
+    Path(".agents/brick/src/brick/memory.py"),
+)
+UPSTREAM_EXECUTABLE_FILES = (
+    Path(".agents/brick/bin/brick"),
+    Path(".agents/brick/setup.py"),
 )
 MEMORY_TYPES = (
     "decision",
@@ -179,6 +223,207 @@ def ensure_local_config(repo_root: Path, result: SetupResult) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(LOCAL_CONFIG_TEMPLATE, encoding="utf-8")
     result.actions.append(f"created {config_path.relative_to(result.repo_root)}")
+
+
+def ensure_upstream_source_config(repo_root: Path, result: SetupResult) -> bool:
+    source_path = repo_root / BRICK_SOURCE_RELATIVE_PATH
+    if source_path.exists():
+        return False
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(SOURCE_CONFIG_TEMPLATE, encoding="utf-8")
+    result.actions.append(f"created {source_path.relative_to(result.repo_root)}")
+    write_upstream_update_state(
+        repo_root,
+        DEFAULT_BRICK_SOURCE_BASE_URL,
+        status="initialized",
+    )
+    return True
+
+
+def read_upstream_source_base_url(repo_root: Path) -> str:
+    source_path = repo_root / BRICK_SOURCE_RELATIVE_PATH
+    try:
+        payload = json.loads(source_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BrickError(f"Invalid Brick upstream source config: {source_path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise BrickError("Brick upstream source config must be a JSON object.")
+    base_url = payload.get("base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise BrickError("Brick upstream source config requires a non-empty `base_url`.")
+    return base_url.strip().rstrip("/")
+
+
+def utc_timestamp(value: datetime | None = None) -> str:
+    current = value or datetime.now(UTC)
+    return current.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def parse_utc_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def read_json_file(path: Path) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as exc:
+        raise BrickError(f"Invalid JSON file: {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise BrickError(f"Expected JSON object in {path}")
+    return payload
+
+
+def write_json_file(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def write_upstream_update_state(
+    repo_root: Path,
+    base_url: str,
+    *,
+    status: str,
+    error: str | None = None,
+) -> None:
+    payload: dict[str, object] = {
+        "base_url": base_url,
+        "checked_at": utc_timestamp(),
+        "status": status,
+    }
+    if error:
+        payload["error"] = error
+    write_json_file(repo_root / BRICK_UPDATE_STATE_RELATIVE_PATH, payload)
+
+
+def upstream_update_due(repo_root: Path, base_url: str, *, force: bool = False) -> bool:
+    if force:
+        return True
+    state = read_json_file(repo_root / BRICK_UPDATE_STATE_RELATIVE_PATH)
+    if state.get("base_url") != base_url:
+        return True
+    checked_at = parse_utc_timestamp(state.get("checked_at"))
+    if checked_at is None:
+        return True
+    return datetime.now(UTC) - checked_at >= UPSTREAM_UPDATE_INTERVAL
+
+
+def package_has_tracked_changes(repo_root: Path) -> bool:
+    paths = [path.as_posix() for path in UPSTREAM_PACKAGE_FILES]
+    for args in (
+        ["diff", "--quiet", "--", *paths],
+        ["diff", "--cached", "--quiet", "--", *paths],
+    ):
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if completed.returncode == 1:
+            return True
+        if completed.returncode != 0:
+            detail = completed.stderr.decode("utf-8", errors="replace").strip()
+            raise BrickError(f"git {' '.join(args)} failed: {detail}")
+    return False
+
+
+def fetch_url_bytes(url: str) -> bytes:
+    try:
+        with urlopen(url, timeout=20) as response:
+            return response.read()
+    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+        raise BrickError(f"fetch failed for {url}: {exc}") from exc
+
+
+def parse_package_manifest(raw: bytes) -> list[Path]:
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise BrickError(f"Invalid upstream Brick package manifest: {exc}") from exc
+    if not isinstance(payload, dict) or not isinstance(payload.get("files"), list):
+        raise BrickError("Upstream Brick package manifest must contain a `files` list.")
+    paths: list[Path] = []
+    for item in payload["files"]:
+        if not isinstance(item, str) or not item.startswith(".agents/brick/"):
+            raise BrickError(f"Invalid upstream Brick package path in manifest: {item!r}")
+        path = Path(item)
+        if path.is_absolute() or ".." in path.parts:
+            raise BrickError(f"Unsafe upstream Brick package path in manifest: {item!r}")
+        paths.append(path)
+    if BRICK_PACKAGE_MANIFEST_RELATIVE_PATH not in paths:
+        paths.insert(0, BRICK_PACKAGE_MANIFEST_RELATIVE_PATH)
+    return paths
+
+
+def fetch_upstream_package_files(base_url: str) -> dict[Path, bytes]:
+    manifest_url = f"{base_url}/{BRICK_PACKAGE_MANIFEST_RELATIVE_PATH.as_posix()}"
+    package_files = parse_package_manifest(fetch_url_bytes(manifest_url))
+    return {path: fetch_url_bytes(f"{base_url}/{path.as_posix()}") for path in package_files}
+
+
+def apply_upstream_package_files(repo_root: Path, payloads: dict[Path, bytes]) -> int:
+    changed = 0
+    for relative_path, content in payloads.items():
+        target = repo_root / relative_path
+        existing = target.read_bytes() if target.exists() else None
+        if existing == content:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        changed += 1
+    for relative_path in UPSTREAM_EXECUTABLE_FILES:
+        target = repo_root / relative_path
+        if target.exists():
+            target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    return changed
+
+
+def maybe_update_from_upstream(
+    repo_root: Path,
+    result: SetupResult,
+    *,
+    skip: bool = False,
+    force: bool = False,
+) -> None:
+    source_created = ensure_upstream_source_config(repo_root, result)
+    if skip:
+        result.warnings.append("skipped upstream Brick update check")
+        return
+    base_url = read_upstream_source_base_url(repo_root)
+    if source_created and not force:
+        return
+    if not upstream_update_due(repo_root, base_url, force=force):
+        return
+    if package_has_tracked_changes(repo_root):
+        result.warnings.append(
+            "skipped upstream Brick update because Brick package files have local changes"
+        )
+        return
+    try:
+        changed = apply_upstream_package_files(repo_root, fetch_upstream_package_files(base_url))
+    except BrickError as exc:
+        write_upstream_update_state(repo_root, base_url, status="error", error=str(exc))
+        result.warnings.append(f"upstream Brick update failed: {exc}")
+        return
+    write_upstream_update_state(repo_root, base_url, status="ok")
+    if changed:
+        result.actions.append(f"updated Brick package from upstream ({changed} files changed)")
+    else:
+        result.actions.append("checked upstream Brick update; no changes")
 
 
 def brick_agents_text(repo_root: Path) -> str:
@@ -390,6 +635,8 @@ def setup_repo(
     skip_venv: bool = False,
     install_agents: bool = True,
     configure_git: bool = True,
+    skip_upstream_update: bool = False,
+    force_upstream_update: bool = False,
 ) -> SetupResult:
     repo_root = repo_root.resolve()
     result = SetupResult(repo_root=repo_root)
@@ -403,6 +650,12 @@ def setup_repo(
     ensure_executable(brick_root / "bin/brick", result)
     ensure_root_symlink(repo_root, result)
     ensure_list_file(repo_root / ".gitignore", GITIGNORE_ENTRIES, result)
+    maybe_update_from_upstream(
+        repo_root,
+        result,
+        skip=skip_upstream_update,
+        force=force_upstream_update,
+    )
     ensure_local_config(repo_root, result)
     ensure_list_file(repo_root / ".gitattributes", (GITATTRIBUTES_ENTRY,), result)
 
@@ -449,6 +702,8 @@ def cmd_setup(args: argparse.Namespace) -> int:
             skip_venv=args.skip_venv,
             install_agents=not args.no_agent_instructions,
             configure_git=not args.no_git_config,
+            skip_upstream_update=args.skip_upstream_update,
+            force_upstream_update=args.force_upstream_update,
         )
     except BrickError as exc:
         return emit_error(str(exc), as_json=args.json)
@@ -771,6 +1026,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-git-config",
         action="store_true",
         help="do not write local Git merge-driver config",
+    )
+    setup.add_argument(
+        "--skip-upstream-update",
+        action="store_true",
+        help="do not check upstream Brick package files",
+    )
+    setup.add_argument(
+        "--force-upstream-update",
+        action="store_true",
+        help="check upstream Brick package files even if already checked today",
     )
     setup.set_defaults(func=cmd_setup)
 

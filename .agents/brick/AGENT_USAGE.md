@@ -10,6 +10,11 @@ or merge-review memory may affect your work.
    Setup also creates or repairs `.agents/brick/.venv`, preferring `uv` and
    falling back to `pip` for dependencies declared in
    `.agents/brick/pyproject.toml`.
+   Setup checks upstream Brick package files at most once per day using
+   `.agents/brick/source.json`; it records the last local check in the
+   gitignored `.agents/brick/update-state.json` file. If setup updates Brick
+   package files, review and commit those tracked files as a coherent setup
+   update.
 2. Check whether semantic retrieval is configured for this machine. Brick reads
    `embedding.url` and `embedding.model` from the gitignored
    `.agents/brick/config.local.json` file. After first setup, if there is no
