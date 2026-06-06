@@ -86,6 +86,8 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertIn("Do not guess at attribute names, control flow, or config behaviour.", agents)
         self.assertIn("When delegating work to subagents is available", agents)
         self.assertIn("task branch created from up-to-date `main`", agents)
+        self.assertIn("use the `agent/` branch prefix", agents)
+        self.assertNotIn("use the `codex/` branch prefix", agents)
         self.assertIn("Do not push directly to `main`", agents)
         self.assertIn("server-side `main` branch protection", agents)
         self.assertIn("Every project must have CI", agents)
