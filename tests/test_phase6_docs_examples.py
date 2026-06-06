@@ -42,6 +42,20 @@ def run_brick(repo: Path, *args: str, input_text: str | None = None) -> subproce
 
 
 class Phase6DocsExamplesTests(unittest.TestCase):
+    def test_github_actions_ci_runs_unittest_discovery(self) -> None:
+        workflow_path = ROOT / ".github/workflows/ci.yml"
+        workflow = workflow_path.read_text(encoding="utf-8")
+
+        self.assertTrue(workflow_path.is_file())
+        self.assertIn("name: CI", workflow)
+        self.assertIn("pull_request:", workflow)
+        self.assertIn("branches:\n      - main", workflow)
+        self.assertIn("permissions:\n  contents: read", workflow)
+        self.assertIn("runs-on: ubuntu-24.04", workflow)
+        self.assertIn("actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955", workflow)
+        self.assertNotIn("actions/checkout@v4", workflow)
+        self.assertIn("python3 -B -m unittest discover tests", workflow)
+
     def test_readme_and_agent_usage_document_core_workflows(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         usage = (ROOT / ".agents/brick/AGENT_USAGE.md").read_text(encoding="utf-8")
