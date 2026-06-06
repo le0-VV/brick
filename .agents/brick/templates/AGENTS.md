@@ -12,6 +12,12 @@
 - The main agent owns supervision: review, integrate, resolve conflicts, and merge subagent work after they finish.
 - Before doing any work, write a concrete plan in `.agents/TODO.md` as a check list and follow it.
 - Tick off the relevant item in `.agents/TODO.md` as its completed to keep track of progress.
+- For tracked-file changes, work on a task branch created from up-to-date `main`; use the `codex/` branch prefix unless the user explicitly requests a different branch name or an existing ref conflict makes that prefix impossible.
+- Do not push directly to `main`. Push the task branch and open a pull request when the repo host supports it.
+- Keep each task branch focused on one logical change and do not mix unrelated edits into the same branch or pull request.
+- Where supported, configure server-side `main` branch protection with pull-request requirements before relying on it. Do not disable, bypass, or weaken branch protection, repository rulesets, required signed commits, or pull-request requirements unless the user explicitly instructs you to do so for that specific operation.
+- Every project must have CI before code changes are considered complete. For local-only repositories, add or maintain local git-hooked CI scripts. For hosted/cloud repositories, add or maintain proper hosted CI such as GitHub Actions or the equivalent for that platform.
+- If the host Git config is set up for signed commits or tags, create signed commits and tags, then verify outgoing commit signatures before pushing. Prefer `git log --show-signature <upstream>..HEAD`; for a single latest commit, use `git log -1 --show-signature`. Do not push if any required signature is missing or bad.
 - Record any extra instructions present in the repo.
 - After updating Brick memory, validate with `./brick memory validate`, rebuild retrieval state with `./brick rebuild` when needed, and commit only the resulting memory changes as a coherent `docs(memory): ...` commit.
 - For non-trivial or long-running work, preserve direction in `ROADMAP.md` and current state in `.agents/TODO.md`.
