@@ -714,3 +714,11 @@ Exit criteria:
 - [x] Required reranker model.
 - [x] PR/issue/commit mining as a first ingest source.
 - [x] Storing secrets or sensitive private data in memory.
+
+## EmbeddingGemma 2 Profile
+
+- [x] Add an explicit device-local embedding profile while preserving generic providers.
+- [x] Format EmbeddingGemma 2 queries and documents with their task prefixes.
+- [x] Bound rebuild requests and validate finite 768-dimensional profile vectors.
+- [x] Track profile compatibility in generated index metadata and preserve atomic rebuilds.
+- [x] Document the profile and verify it through regression tests and a live endpoint.

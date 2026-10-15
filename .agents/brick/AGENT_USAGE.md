@@ -37,6 +37,37 @@ or merge-review memory may affect your work.
    ./brick rebuild
    ```
 
+## EmbeddingGemma 2
+
+For a text-only EmbeddingGemma 2 server, set the optional `embedding.profile`
+alongside the endpoint and its model alias in the device-local configuration:
+
+```json
+{
+  "embedding": {
+    "url": "http://127.0.0.1:18082/v1",
+    "model": "embeddinggemma-2",
+    "profile": "embeddinggemma-2"
+  }
+}
+```
+
+This profile prefixes queries with `task: search result | query: ` and memories
+with `title: {title or none} | text: {body}`, preserving case, punctuation and
+Markdown. Rebuilds send one memory per request, with a 30-second timeout, and
+require 768 finite numeric values per embedding. Configure the server to reject
+inputs exceeding 2,048 tokens, including the prefix; Brick reports that error
+without truncating the memory. A failed rebuild preserves the previous index.
+
+Back up the local configuration and generated index before switching providers,
+then run `./brick rebuild` to regenerate every vector. Index metadata records the
+model, profile and profile version; incompatible vectors disable semantic search
+and report an explicit rebuild action while keyword search remains available.
+
+Omitting `profile`, or selecting `generic`, preserves the existing provider input
+format and batching. Other profiles are rejected. Legacy generic indexes remain
+compatible; they cannot be used with the EmbeddingGemma 2 profile.
+
 ## Adding Memory
 
 Do not hand-edit canonical memory files unless the user explicitly asks. Prepare
