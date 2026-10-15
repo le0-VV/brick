@@ -29,6 +29,8 @@ INDEX_RELATIVE_PATH = Path(".agents/brick/index/brick.sqlite3")
 LOCAL_CONFIG_RELATIVE_PATH = Path(".agents/brick/config.local.json")
 EMBEDDING_URL_FIELD = "embedding.url"
 EMBEDDING_MODEL_FIELD = "embedding.model"
+EMBEDDING_PROFILE_FIELD = "embedding.profile"
+EMBEDDING_PROFILE_VERSIONS = {"generic": 1, "embeddinggemma-2": 1}
 EMBEDDING_API_KEY_ENV_VAR = "BRICK_EMBEDDING_API_KEY"
 EMBEDDING_TIMEOUT_SECONDS = 30
 HYBRID_SEMANTIC_WEIGHT = 20.0
@@ -69,6 +71,7 @@ class EmbeddingConfig:
     endpoint_url: str
     model: str
     api_key: str | None = None
+    profile: str = "generic"
 
 
 @dataclass(frozen=True)
@@ -76,6 +79,7 @@ class LocalEmbeddingConfig:
     url: str = ""
     model: str = ""
     api_key_env: str = EMBEDDING_API_KEY_ENV_VAR
+    profile: str = "generic"
 
 
 @dataclass(frozen=True)
@@ -84,6 +88,7 @@ class EmbeddingSettings:
     model: str
     api_key_env: str
     api_key: str | None
+    profile: str = "generic"
 
 
 @dataclass
@@ -95,6 +100,7 @@ class RebuildResult:
     embedding_count: int = 0
     embedding_model: str | None = None
     embedding_dimensions: int | None = None
+    embedding_profile: str | None = None
 
     def to_dict(self, repo_root: Path) -> dict[str, Any]:
         index: dict[str, Any] = {
@@ -108,6 +114,9 @@ class RebuildResult:
             index["embedding_model"] = self.embedding_model
         if self.embedding_dimensions is not None:
             index["embedding_dimensions"] = self.embedding_dimensions
+        if self.embedding_profile is not None:
+            index["embedding_profile"] = self.embedding_profile
+            index["embedding_profile_version"] = EMBEDDING_PROFILE_VERSIONS[self.embedding_profile]
         return {
             "status": "ok",
             "index": index,
@@ -150,10 +159,15 @@ def rebuild_index(
     embedding_dimensions: int | None = None
     if embedding_config is not None and memory_rows:
         try:
-            embedding_vectors = request_embeddings(
-                embedding_config,
-                [row["search_text"] for row in memory_rows],
-            )
+            if embedding_config.profile == "embeddinggemma-2":
+                for row in memory_rows:
+                    text = f"title: {row['title'] or 'none'} | text: {row['body']}"
+                    embedding_vectors.extend(request_embeddings(embedding_config, [text]))
+            else:
+                embedding_vectors = request_embeddings(
+                    embedding_config,
+                    [row["search_text"] for row in memory_rows],
+                )
             embedding_dimensions = validate_embedding_dimensions(embedding_vectors)
         except EmbeddingError as exc:
             raise BrickIndexError(
@@ -195,6 +209,7 @@ def rebuild_index(
                 embedding_count=len(embedding_vectors),
                 embedding_model=embedding_config.model if embedding_config else None,
                 embedding_dimensions=embedding_dimensions,
+                embedding_profile=embedding_config.profile if embedding_config else None,
             )
             connection.commit()
         finally:
@@ -219,6 +234,7 @@ def rebuild_index(
         embedding_count=len(embedding_vectors),
         embedding_model=embedding_config.model if embedding_config else None,
         embedding_dimensions=embedding_dimensions,
+        embedding_profile=embedding_config.profile if embedding_config else None,
     )
 
 
@@ -285,6 +301,7 @@ def write_metadata(
     embedding_count: int = 0,
     embedding_model: str | None = None,
     embedding_dimensions: int | None = None,
+    embedding_profile: str | None = None,
 ) -> None:
     rows = {
         "schema_version": str(INDEX_SCHEMA_VERSION),
@@ -296,6 +313,9 @@ def write_metadata(
         rows["embedding_model"] = embedding_model
     if embedding_dimensions is not None:
         rows["embedding_dimensions"] = str(embedding_dimensions)
+    if embedding_profile is not None:
+        rows["embedding_profile"] = embedding_profile
+        rows["embedding_profile_version"] = str(EMBEDDING_PROFILE_VERSIONS[embedding_profile])
     connection.executemany(
         "INSERT INTO metadata (key, value) VALUES (?, ?)",
         sorted(rows.items()),
@@ -439,7 +459,12 @@ def search_index(
         )
         if semantic["available"]:
             try:
-                query_vector = request_embeddings(embedding_config, [query])[0]
+                query_text = (
+                    f"task: search result | query: {query}"
+                    if embedding_config.profile == "embeddinggemma-2"
+                    else query
+                )
+                query_vector = request_embeddings(embedding_config, [query_text])[0]
                 query_dimensions = len(query_vector)
                 indexed_dimensions = metadata.get("embedding_dimensions")
                 if indexed_dimensions != query_dimensions:
@@ -486,6 +511,8 @@ def search_index(
             "embedding_count": metadata.get("embedding_count", 0),
             **optional_metadata(metadata, "embedding_model"),
             **optional_metadata(metadata, "embedding_dimensions"),
+            **optional_metadata(metadata, "embedding_profile"),
+            **optional_metadata(metadata, "embedding_profile_version"),
         },
         "retrieval": {
             "mode": "hybrid" if semantic.get("available") else "keyword",
@@ -506,8 +533,16 @@ def read_metadata(connection: sqlite3.Connection) -> dict[str, Any]:
     rows = connection.execute("SELECT key, value FROM metadata").fetchall()
     metadata: dict[str, Any] = {}
     for key, value in rows:
-        if key in {"schema_version", "memory_count", "embedding_count", "embedding_dimensions"}:
-            metadata[key] = int(value)
+        if key in {
+            "schema_version", "memory_count", "embedding_count", "embedding_dimensions",
+            "embedding_profile_version",
+        }:
+            try:
+                metadata[key] = int(value)
+            except ValueError:
+                if key != "embedding_profile_version":
+                    raise
+                metadata[key] = value
         else:
             metadata[key] = value
     return metadata
@@ -683,6 +718,26 @@ def semantic_status_for_index(
             "indexed_model": indexed_model,
             "action": "run brick rebuild",
         }
+    indexed_profile = metadata.get("embedding_profile", "generic")
+    indexed_profile_version = metadata.get(
+        "embedding_profile_version", 1 if indexed_profile == "generic" else None
+    )
+    if (
+        indexed_profile != config.profile
+        or indexed_profile_version != EMBEDDING_PROFILE_VERSIONS[config.profile]
+    ):
+        return {
+            "available": False,
+            "reason": "embedding_profile_mismatch",
+            "config_path": local_config_relative_path(repo_root),
+            "field": EMBEDDING_PROFILE_FIELD,
+            "configured_profile": config.profile,
+            "configured_profile_version": EMBEDDING_PROFILE_VERSIONS[config.profile],
+            "indexed_profile": indexed_profile,
+            "indexed_profile_version": indexed_profile_version,
+            "message": "Embedding profile changed. Run `brick rebuild` before semantic search.",
+            "action": "run brick rebuild",
+        }
     return {
         "available": True,
         "config_path": local_config_relative_path(repo_root),
@@ -700,6 +755,7 @@ def configured_embedding(repo_root: Path, env: Mapping[str, str]) -> EmbeddingCo
         endpoint_url=embedding_endpoint_url(settings.raw_url),
         model=settings.model,
         api_key=settings.api_key,
+        profile=settings.profile,
     )
 
 
@@ -712,6 +768,7 @@ def embedding_settings(repo_root: Path, env: Mapping[str, str]) -> EmbeddingSett
         model=local.model,
         api_key_env=api_key_env,
         api_key=api_key or None,
+        profile=local.profile,
     )
 
 
@@ -743,7 +800,9 @@ def load_local_embedding_config(repo_root: Path) -> LocalEmbeddingConfig:
             repo_root,
             "embedding.api_key is not allowed; set embedding.api_key_env instead",
         )
-    unknown_embedding = sorted(set(embedding) - {"url", "base_url", "model", "api_key_env"})
+    unknown_embedding = sorted(
+        set(embedding) - {"url", "base_url", "model", "api_key_env", "profile"}
+    )
     if unknown_embedding:
         raise local_config_error(
             repo_root,
@@ -758,10 +817,16 @@ def load_local_embedding_config(repo_root: Path) -> LocalEmbeddingConfig:
             "embedding.url and embedding.base_url must not disagree",
         )
     api_key_env = local_config_string(repo_root, embedding, "api_key_env")
+    profile = (
+        local_config_string(repo_root, embedding, "profile") if "profile" in embedding else "generic"
+    )
+    if profile not in EMBEDDING_PROFILE_VERSIONS:
+        raise local_config_error(repo_root, "embedding.profile must be generic or embeddinggemma-2")
     return LocalEmbeddingConfig(
         url=url or base_url,
         model=local_config_string(repo_root, embedding, "model"),
         api_key_env=api_key_env or EMBEDDING_API_KEY_ENV_VAR,
+        profile=profile,
     )
 
 
@@ -851,10 +916,12 @@ def request_embeddings(config: EmbeddingConfig, inputs: list[str]) -> list[list[
             "embedding_response_invalid",
             "embedding endpoint returned invalid JSON",
         ) from exc
-    return parse_embedding_response(payload, len(inputs))
+    return parse_embedding_response(payload, len(inputs), profile=config.profile)
 
 
-def parse_embedding_response(payload: Any, expected_count: int) -> list[list[float]]:
+def parse_embedding_response(
+    payload: Any, expected_count: int, *, profile: str = "generic"
+) -> list[list[float]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
         raise EmbeddingError(
             "embedding_response_invalid",
@@ -865,6 +932,14 @@ def parse_embedding_response(payload: Any, expected_count: int) -> list[list[flo
         raise EmbeddingError(
             "embedding_response_invalid",
             f"embedding response returned {len(data)} vectors for {expected_count} inputs",
+        )
+    if profile == "embeddinggemma-2" and (
+        any(not isinstance(item, dict) or type(item.get("index")) is not int for item in data)
+        or sorted(item["index"] for item in data) != list(range(expected_count))
+    ):
+        raise EmbeddingError(
+            "embedding_response_invalid",
+            "embedding response indices must identify each input exactly once",
         )
     if all(isinstance(item, dict) and isinstance(item.get("index"), int) for item in data):
         data = sorted(data, key=lambda item: item["index"])
@@ -885,9 +960,23 @@ def parse_embedding_response(payload: Any, expected_count: int) -> list[list[flo
                     "embedding_response_invalid",
                     "embedding values must be numeric",
                 )
-            vector.append(float(value))
+            try:
+                number = float(value)
+            except OverflowError as exc:
+                raise EmbeddingError(
+                    "embedding_response_invalid", "embedding values must be finite"
+                ) from exc
+            if profile == "embeddinggemma-2" and not math.isfinite(number):
+                raise EmbeddingError(
+                    "embedding_response_invalid", "embedding values must be finite"
+                )
+            vector.append(number)
         vectors.append(vector)
-    validate_embedding_dimensions(vectors)
+    dimensions = validate_embedding_dimensions(vectors)
+    if profile == "embeddinggemma-2" and dimensions != 768:
+        raise EmbeddingError(
+            "embedding_response_invalid", "EmbeddingGemma 2 requires 768-dimensional vectors"
+        )
     return vectors
 
 
