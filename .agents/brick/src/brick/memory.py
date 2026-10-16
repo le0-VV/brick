@@ -608,7 +608,7 @@ def parse_memory_json(raw: str) -> Any:
         raise ValueError("non-finite JSON number")
 
     try:
-        return json.loads(
+        payload = json.loads(
             raw,
             object_pairs_hook=object_without_duplicates,
             parse_float=finite_float,
@@ -616,30 +616,55 @@ def parse_memory_json(raw: str) -> Any:
         )
     except (ValueError, RecursionError) as exc:
         raise MemoryAddError("invalid JSON input", code="invalid_json") from exc
+    validate_json_tree(payload)
+    return payload
 
 
-def forbidden_approval_issues(value: Any, path: str = "") -> list[ValidationIssue]:
-    issues: list[ValidationIssue] = []
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = f"{path}.{key}" if path else str(key)
-            if key == "confirm_public":
-                issues.append(ValidationIssue(
-                    code="untrusted_approval",
-                    message="candidate JSON cannot supply approval; use the trusted caller argument after human review",
-                    field=child_path,
-                ))
-            issues.extend(forbidden_approval_issues(child, child_path))
-    elif isinstance(value, list):
-        for index, child in enumerate(value):
-            issues.extend(forbidden_approval_issues(child, f"{path}[{index}]"))
-    return issues
+def validate_json_tree(value: Any, *, candidate_fields: bool = False) -> None:
+    pending = [(value, "", 0)]
+    while pending:
+        current, path, depth = pending.pop()
+        if depth > 64:
+            raise MemoryAddError("JSON nesting must not exceed 64 levels", code="invalid_json")
+        if isinstance(current, str):
+            try:
+                current.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise MemoryAddError("JSON strings and keys must be valid Unicode", code="invalid_json") from exc
+        elif isinstance(current, dict):
+            for key, child in current.items():
+                if not isinstance(key, str):
+                    raise MemoryAddError("JSON mapping keys must be strings", code="invalid_json")
+                pending.append((key, path, depth + 1))
+                if candidate_fields:
+                    if key == "confirm_public":
+                        raise MemoryAddError("candidate JSON cannot supply approval", issues=[ValidationIssue(
+                            code="untrusted_approval",
+                            message="candidate JSON cannot supply approval; use the trusted caller argument after human review",
+                            field=path or "candidate",
+                        )])
+                    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
+                        raise MemoryAddError("unsafe candidate mapping key", issues=[ValidationIssue(
+                            code="unsafe_mapping_key",
+                            message="mapping keys must match [A-Za-z_][A-Za-z0-9_]*",
+                            field=path or "candidate",
+                        )])
+                child_path = f"{path}.{key}" if path else key
+                pending.append((child, child_path, depth + 1))
+        elif isinstance(current, list):
+            pending.extend((child, f"{path}[{index}]", depth + 1) for index, child in enumerate(current))
+        elif isinstance(current, float):
+            if not math.isfinite(current):
+                raise MemoryAddError("JSON numbers must be finite", code="invalid_json")
+        elif current is not None and not isinstance(current, (int, bool)):
+            raise MemoryAddError("candidate must contain only JSON values", code="invalid_json")
 
 
 def validate_candidate_shape(candidate: dict[str, Any]) -> None:
     if not isinstance(candidate, dict):
         raise MemoryAddError("memory candidate must be a mapping")
-    issues = forbidden_approval_issues(candidate)
+    validate_json_tree(candidate, candidate_fields=True)
+    issues: list[ValidationIssue] = []
     unknown_fields = sorted(set(candidate) - ADD_ALLOWED_FIELDS)
     for field_name in unknown_fields:
         issues.append(
@@ -1235,8 +1260,8 @@ def iter_safety_strings(document: MemoryDocument) -> Iterable[str]:
     yield from iter_frontmatter_safety_strings(document.frontmatter)
 
 
-def iter_frontmatter_safety_strings(value: Any, key: str | None = None) -> Iterable[str]:
-    skipped_keys = {
+def iter_frontmatter_safety_strings(value: Any) -> Iterable[str]:
+    skipped_root_keys = {
         "id",
         "type",
         "status",
@@ -1247,16 +1272,19 @@ def iter_frontmatter_safety_strings(value: Any, key: str | None = None) -> Itera
         "related",
         "confirm_public",
     }
-    if key in skipped_keys:
-        return
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, list):
-        for item in value:
-            yield from iter_frontmatter_safety_strings(item)
-    elif isinstance(value, dict):
-        for child_key, child_value in value.items():
-            yield from iter_frontmatter_safety_strings(child_value, child_key)
+    pending = [(value, True)]
+    while pending:
+        current, is_root = pending.pop()
+        if isinstance(current, str):
+            yield current
+        elif isinstance(current, list):
+            pending.extend((child, False) for child in current)
+        elif isinstance(current, dict):
+            for key, child in current.items():
+                if is_root and key in skipped_root_keys:
+                    continue
+                yield str(key)
+                pending.append((child, False))
 
 
 def line_number_for_match(text: str, matched_text: str) -> int | None:

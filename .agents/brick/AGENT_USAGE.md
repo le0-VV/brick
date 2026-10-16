@@ -81,6 +81,11 @@ Valid candidates need:
 
 - `title`, `type`, `tags`, `body`, `source`, and `evidence`.
 - Concrete source/evidence that lets maintainers judge trust.
+- Mapping keys at every nesting level matching `[A-Za-z_][A-Za-z0-9_]*`.
+  Unsafe keys are rejected before Markdown rendering; they are never stripped.
+- Valid Unicode strings and keys, finite JSON numbers and nesting at most 64
+  levels, including for direct Python callers. Nested metadata keys and values
+  receive safety scanning; reserved names only skip actual root metadata.
 - No secrets.
 - No possible PII unless the user has explicitly confirmed it is public with
   the separate trusted `--confirm-public` flag. Candidate JSON must never contain

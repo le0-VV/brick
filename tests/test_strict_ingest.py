@@ -17,6 +17,10 @@ from brick.memory import (
     MemoryAddError,
     build_memory_frontmatter,
     create_memory_from_candidate,
+    compute_content_hash,
+    MemoryDocument,
+    render_memory_text,
+    validate_memory,
     load_memory,
     parse_memory_json,
     validate_memory_file,
@@ -292,6 +296,129 @@ class StrictIngestTests(unittest.TestCase):
                     completed = run_brick(self.repo, *args, payload=raw)
                     self.assertEqual(completed.returncode, 1)
                     self.assertEqual(json.loads(completed.stdout)["reason"], "invalid_json")
+        self.assertEqual(self.snapshot(), before)
+
+    def test_unsafe_mapping_keys_cannot_inject_approval_or_hide_content(self) -> None:
+        before = self.snapshot()
+        for key in ("\nconfirm_public", "confirm_public\n", "x: true\nconfirm_public", "maintainer@example.org", "bad-key", "", 1):
+            for location in ("candidate", "source", "evidence", "fields"):
+                candidate = decision()["candidate"]
+                candidate["body"] = "Project contact: maintainer@example.org."
+                target = {
+                    "candidate": candidate,
+                    "source": candidate["source"],
+                    "evidence": candidate["evidence"][0],
+                    "fields": candidate.setdefault("fields", {}),
+                }[location]
+                target[key] = True
+                with self.subTest(key=key, location=location):
+                    with self.assertRaises(MemoryAddError):
+                        build_memory_frontmatter(candidate)
+                    for approved in (False, True):
+                        with self.assertRaises(MemoryAddError):
+                            create_memory_from_candidate(self.repo, candidate, confirm_public=approved)
+                    completed = run_brick(self.repo, "memory", "add", payload=candidate)
+                    self.assertEqual(completed.returncode, 1, completed.stdout + completed.stderr)
+                    self.assertEqual(json.loads(completed.stdout)["status"], "invalid")
+                    self.assertNotIn("Traceback", completed.stderr)
+                    envelope = decision()
+                    envelope["candidate"] = candidate
+                    self.assert_invalid(envelope)
+                    self.assertEqual(self.review(envelope).returncode, 1)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_reserved_metadata_names_never_hide_nested_pii_or_secrets(self) -> None:
+        before = self.snapshot()
+        for name in ("id", "type", "status", "created_at", "updated_at", "content_hash", "supersedes", "related"):
+            for text, expected in (("maintainer@example.org", "possible_pii"), ("api_key = sk_test_1234567890abcdef", "secret_detected")):
+                for location in ("source", "evidence"):
+                    candidate = decision()["candidate"]
+                    target = candidate["source"] if location == "source" else candidate["evidence"][0]
+                    target[name] = text
+                    with self.subTest(name=name, expected=expected, location=location):
+                        with self.assertRaises(MemoryAddError) as raised:
+                            create_memory_from_candidate(self.repo, candidate)
+                        self.assertIn(expected, {issue.code for issue in raised.exception.issues})
+                        completed = run_brick(self.repo, "memory", "add", payload=candidate)
+                        self.assertEqual(completed.returncode, 1)
+                        self.assertEqual(json.loads(completed.stdout)["status"], "blocked")
+                        if expected == "secret_detected":
+                            with self.assertRaises(MemoryAddError):
+                                create_memory_from_candidate(self.repo, candidate, confirm_public=True)
+                            completed = run_brick(self.repo, "memory", "add", "--confirm-public", payload=candidate)
+                            self.assertEqual(completed.returncode, 1)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_existing_markdown_mapping_keys_receive_safety_scanning(self) -> None:
+        for key, expected in (("maintainer@example.org", "possible_pii"), ("api_key = sk_test_1234567890abcdef", "secret_detected")):
+            frontmatter, body = build_memory_frontmatter(decision()["candidate"])
+            frontmatter["source"][key] = "contact"
+            frontmatter["content_hash"] = compute_content_hash(frontmatter, body)
+            document = MemoryDocument(self.repo / "candidate.md", frontmatter, body, render_memory_text(frontmatter, body))
+            result = validate_memory(document)
+            with self.subTest(key=key):
+                self.assertEqual(result.status, "blocked")
+                self.assertIn(expected, {issue.code for issue in result.issues})
+
+    def test_invalid_unicode_is_structured_failure_for_json_and_direct_callers(self) -> None:
+        before = self.snapshot()
+        for location in ("title", "body", "source_value", "source_key", "evidence"):
+            candidate = decision()["candidate"]
+            if location in {"title", "body"}:
+                candidate[location] = "\ud800"
+            elif location == "source_value":
+                candidate["source"]["ref"] = "\udfff"
+            elif location == "source_key":
+                candidate["source"]["\ud800"] = "invalid Unicode key"
+            else:
+                candidate["evidence"][0]["text"] = "\ud800"
+            envelope = decision()
+            envelope["candidate"] = candidate
+            with self.subTest(location=location):
+                with self.assertRaises(MemoryAddError):
+                    parse_memory_json(json.dumps(candidate))
+                with self.assertRaises(MemoryAddError):
+                    build_memory_frontmatter(candidate)
+                with self.assertRaises(MemoryAddError):
+                    create_memory_from_candidate(self.repo, candidate)
+                self.assert_invalid(envelope)
+                for completed in (run_brick(self.repo, "memory", "add", payload=candidate), self.review(envelope)):
+                    self.assertEqual(completed.returncode, 1)
+                    self.assertEqual(json.loads(completed.stdout)["status"], "invalid")
+                    self.assertNotIn("Traceback", completed.stderr)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_deep_or_cyclic_json_is_rejected_without_recursion_crashes_or_writes(self) -> None:
+        before = self.snapshot()
+        for depth in (65, 995, 996, 997, 998, 999):
+            raw = '{"action":"reject","reason":"skip","questions":[],"candidate":null,"extra":' + '[' * depth + '0' + ']' * depth + '}'
+            with self.subTest(depth=depth):
+                completed = self.review(raw)
+                self.assertEqual(completed.returncode, 1)
+                self.assertEqual(json.loads(completed.stdout)["status"], "invalid")
+                self.assertNotIn("Traceback", completed.stderr)
+            extra = 0
+            for _ in range(depth):
+                extra = [extra]
+            envelope = decision()
+            envelope["extra"] = extra
+            self.assert_invalid(envelope)
+            candidate = decision()["candidate"]
+            candidate["source"]["extra"] = extra
+            with self.assertRaises(MemoryAddError):
+                create_memory_from_candidate(self.repo, candidate)
+            raw_candidate = json.dumps(decision()["candidate"])[:-1] + ',"extra":' + '[' * depth + '0' + ']' * depth + '}'
+            completed = run_brick(self.repo, "memory", "add", payload=raw_candidate)
+            self.assertEqual(completed.returncode, 1)
+            self.assertEqual(json.loads(completed.stdout)["status"], "invalid")
+            self.assertNotIn("Traceback", completed.stderr)
+        candidate = decision()["candidate"]
+        candidate["source"]["cycle"] = candidate
+        with self.assertRaises(MemoryAddError):
+            create_memory_from_candidate(self.repo, candidate)
+        envelope = decision()
+        envelope["cycle"] = envelope
+        self.assert_invalid(envelope)
         self.assertEqual(self.snapshot(), before)
 
     def test_source_instructions_are_inert_and_review_never_invokes_writer(self) -> None:

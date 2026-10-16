@@ -8,8 +8,8 @@ from brick.memory import (
     MemoryDocument,
     ValidationIssue,
     build_memory_frontmatter,
-    forbidden_approval_issues,
     render_memory_text,
+    validate_json_tree,
     validate_memory,
 )
 
@@ -39,12 +39,11 @@ def nonempty_text(value: Any, field: str) -> None:
 
 def review_memory_ingest(envelope: Any, source_text: str) -> dict[str, Any]:
     """Check an untrusted decision without writing; quoted evidence still needs semantic review."""
-    issues = forbidden_approval_issues(envelope)
-    if issues:
-        raise MemoryAddError("ingest JSON cannot supply approval", issues=issues)
+    validate_json_tree(envelope, candidate_fields=True)
     exact_fields(envelope, {"action", "reason", "questions", "candidate"}, "decision")
     if not isinstance(source_text, str):
         invalid_ingest("source text must be a string supplied separately", "source_text")
+    validate_json_tree(source_text)
     action = envelope["action"]
     if not isinstance(action, str) or action not in {"add", "clarify", "reject"}:
         invalid_ingest("action must be add, clarify or reject", "action")
