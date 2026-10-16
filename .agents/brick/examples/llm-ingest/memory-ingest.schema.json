@@ -47,8 +47,7 @@
             "tags",
             "body",
             "source",
-            "evidence",
-            "confirm_public"
+            "evidence"
           ],
           "properties": {
             "title": {
@@ -123,32 +122,18 @@
                   "kind": {
                     "type": "string",
                     "enum": [
-                      "quote",
-                      "file_excerpt",
-                      "work_summary",
-                      "commit",
-                      "pull_request",
-                      "issue",
-                      "manual"
+                      "quote"
                     ]
                   },
                   "text": {
                     "type": "string",
-                    "minLength": 1
-                  },
-                  "path": {
-                    "type": "string"
-                  },
-                  "line": {
-                    "type": "string"
+                    "minLength": 1,
+                    "description": "Verbatim, case-sensitive excerpt from the supplied original source, without ellipses or edits."
                   }
                 }
               },
               "minItems": 1,
               "maxItems": 5
-            },
-            "confirm_public": {
-              "type": "boolean"
             }
           }
         }

@@ -23,6 +23,7 @@
     ".agents/brick/src/brick/cli.py",
     ".agents/brick/src/brick/conflicts.py",
     ".agents/brick/src/brick/index.py",
+    ".agents/brick/src/brick/ingest.py",
     ".agents/brick/src/brick/memory.py"
   ]
 }

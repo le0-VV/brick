@@ -144,7 +144,7 @@ class Phase3MemoryAddTests(unittest.TestCase):
         payload = json.loads(completed.stdout)
         self.assertEqual(completed.returncode, 1)
         self.assertEqual(payload["status"], "blocked")
-        self.assertEqual(payload["actions"], ["redact", "confirm_public", "reject"])
+        self.assertEqual(payload["actions"], ["redact", "reject"])
         self.assertFalse((repo / ".agents/memory").exists())
 
     def test_memory_add_writes_command_fields(self) -> None:

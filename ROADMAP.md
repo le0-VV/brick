@@ -277,7 +277,7 @@ Secret and PII checks:
 - [x] Block possible emails until explicitly confirmed.
 - [x] Block possible phone numbers until explicitly confirmed.
 - [x] Block possible addresses until explicitly confirmed.
-- [x] Support candidate-level `confirm_public: true` JSON confirmation.
+- [x] Keep human approval outside candidate JSON through the trusted caller flag.
 - [x] Require explicit confirmation before saving public human names.
 - [x] Require explicit confirmation before saving public email addresses.
 - [x] Ensure committed memory is safe for the repository's intended audience.
@@ -354,7 +354,6 @@ Proposed `brick memory add` input contract:
       "text": "Quoted user text or concrete artifact reference."
     }
   ],
-  "confirm_public": false,
   "supersedes": [],
   "related": [],
   "fields": {}
@@ -566,7 +565,7 @@ Goal: make canonical Markdown memory safe and consistent.
 - [x] Exclude `content_hash` and `updated_at` from hash input.
 - [x] Implement secret scanner.
 - [x] Implement PII block-until-confirmed flow.
-- [x] Implement `confirm_public` handling in JSON candidates.
+- [x] Reject `confirm_public` in JSON candidates and accept explicit trusted caller approval.
 - [x] Implement structured validation output.
 - [x] Implement `brick memory validate`.
 
@@ -722,3 +721,10 @@ Exit criteria:
 - [x] Bound rebuild requests and validate finite 768-dimensional profile vectors.
 - [x] Track profile compatibility in generated index metadata and preserve atomic rebuilds.
 - [x] Document the profile and verify it through regression tests and a live endpoint.
+
+## Strict Model-Assisted Ingestion
+
+- [x] Keep public approval outside all candidate JSON and preserve explicitly approved manual writes.
+- [x] Validate model decisions and exact source quotes through a read-only review command.
+- [x] Reject malformed output, approval injection and detected unsafe content before writes.
+- [x] Verify the boundary with regression tests and a broader live Bonsai evaluation.

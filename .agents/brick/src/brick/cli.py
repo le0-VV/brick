@@ -30,12 +30,14 @@ from brick.index import (
     rebuild_index,
     search_index,
 )
+from brick.ingest import review_memory_ingest
 from brick.memory import (
     MemoryAddError,
     MemoryParseError,
     MemoryRedactError,
     create_memory_from_candidate,
     discover_memory_files,
+    parse_memory_json,
     redact_memory_from_candidate,
     validate_memory_paths,
 )
@@ -97,6 +99,7 @@ UPSTREAM_PACKAGE_FILES = (
     Path(".agents/brick/src/brick/cli.py"),
     Path(".agents/brick/src/brick/conflicts.py"),
     Path(".agents/brick/src/brick/index.py"),
+    Path(".agents/brick/src/brick/ingest.py"),
     Path(".agents/brick/src/brick/memory.py"),
 )
 UPSTREAM_EXECUTABLE_FILES = (
@@ -781,8 +784,8 @@ def cmd_memory_validate(args: argparse.Namespace) -> int:
 def cmd_memory_add(args: argparse.Namespace) -> int:
     raw_input = sys.stdin.read()
     try:
-        candidate = json.loads(raw_input)
-    except json.JSONDecodeError as exc:
+        candidate = parse_memory_json(raw_input)
+    except MemoryAddError as exc:
         emit_json(
             {
                 "status": "invalid",
@@ -810,7 +813,7 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
 
     try:
         repo_root = find_repo_root()
-        result = create_memory_from_candidate(repo_root, candidate)
+        result = create_memory_from_candidate(repo_root, candidate, confirm_public=args.confirm_public)
     except BrickError as exc:
         return emit_error(str(exc), pretty=args.pretty)
     except MemoryAddError as exc:
@@ -823,18 +826,41 @@ def cmd_memory_add(args: argparse.Namespace) -> int:
             )
             else "invalid"
         )
+        actions = ["reject"]
+        if status == "blocked":
+            actions = ["redact", "reject"]
+            if not any(issue["code"] == "secret_detected" for issue in issue_payloads):
+                actions.insert(1, "confirm_public")
         emit_json(
             {
                 "status": status,
                 "reason": exc.code,
                 "issues": issue_payloads,
-                "actions": ["redact", "confirm_public", "reject"] if status == "blocked" else ["reject"],
+                "actions": actions,
             },
             args.pretty,
         )
         return 1
 
     emit_json(result.to_dict(repo_root), args.pretty)
+    return 0
+
+
+def cmd_memory_review(args: argparse.Namespace) -> int:
+    try:
+        envelope = parse_memory_json(sys.stdin.read())
+        source_text = Path(args.source_file).read_text(encoding="utf-8")
+        payload = review_memory_ingest(envelope, source_text)
+    except (OSError, UnicodeDecodeError) as exc:
+        return emit_error(f"could not read source file: {exc}", pretty=args.pretty)
+    except MemoryAddError as exc:
+        emit_json({
+            "status": "blocked" if exc.code == "blocked" else "invalid",
+            "reason": exc.code,
+            "issues": [issue.to_dict() for issue in exc.issues],
+        }, args.pretty)
+        return 1
+    emit_json(payload, args.pretty)
     return 0
 
 
@@ -1053,7 +1079,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     memory_add = memory_subparsers.add_parser("add", help="add a memory from JSON stdin")
     memory_add.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_add.add_argument(
+        "--confirm-public",
+        action="store_true",
+        help="assert explicit human approval of possible PII for the repository audience",
+    )
     memory_add.set_defaults(func=cmd_memory_add)
+
+    memory_review = memory_subparsers.add_parser("review", help="check an untrusted ingest decision without writing")
+    memory_review.add_argument("--source-file", required=True, help="original UTF-8 source for exact quote checks")
+    memory_review.add_argument("--pretty", action="store_true", help="pretty-print JSON")
+    memory_review.set_defaults(func=cmd_memory_review)
 
     memory_redact = memory_subparsers.add_parser(
         "redact",

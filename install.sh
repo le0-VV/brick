@@ -46,6 +46,7 @@ copy_from_checkout() {
   cp "$source_dir/.agents/brick/src/brick/cli.py" .agents/brick/src/brick/cli.py
   cp "$source_dir/.agents/brick/src/brick/conflicts.py" .agents/brick/src/brick/conflicts.py
   cp "$source_dir/.agents/brick/src/brick/index.py" .agents/brick/src/brick/index.py
+  cp "$source_dir/.agents/brick/src/brick/ingest.py" .agents/brick/src/brick/ingest.py
   cp "$source_dir/.agents/brick/src/brick/memory.py" .agents/brick/src/brick/memory.py
 }
 
@@ -76,6 +77,7 @@ fetch_from_base_url() {
   curl -fsSL "$base_url/.agents/brick/src/brick/cli.py" -o .agents/brick/src/brick/cli.py
   curl -fsSL "$base_url/.agents/brick/src/brick/conflicts.py" -o .agents/brick/src/brick/conflicts.py
   curl -fsSL "$base_url/.agents/brick/src/brick/index.py" -o .agents/brick/src/brick/index.py
+  curl -fsSL "$base_url/.agents/brick/src/brick/ingest.py" -o .agents/brick/src/brick/ingest.py
   curl -fsSL "$base_url/.agents/brick/src/brick/memory.py" -o .agents/brick/src/brick/memory.py
 }
 
