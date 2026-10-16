@@ -108,7 +108,8 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn("candidate", schema["required"])
         candidate_schema = schema["properties"]["candidate"]["anyOf"][1]
         self.assertEqual(candidate_schema["additionalProperties"], False)
-        self.assertIn("confirm_public", candidate_schema["required"])
+        self.assertNotIn("confirm_public", candidate_schema["properties"])
+        self.assertNotIn("confirm_public", candidate_schema["required"])
         self.assertIn("source", candidate_schema["required"])
         self.assertIn("evidence", candidate_schema["required"])
         self.assertNotIn("fields", candidate_schema["properties"])

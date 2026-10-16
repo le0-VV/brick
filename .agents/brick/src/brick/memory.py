@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import secrets
 import time
@@ -32,7 +33,6 @@ ADD_ALLOWED_FIELDS = {
     "body",
     "source",
     "evidence",
-    "confirm_public",
     "supersedes",
     "related",
     "fields",
@@ -425,8 +425,9 @@ def create_memory_from_candidate(
     candidate: dict[str, Any],
     *,
     now: datetime | None = None,
+    confirm_public: bool = False,
 ) -> AddMemoryResult:
-    frontmatter, body = build_memory_frontmatter(candidate, now=now)
+    frontmatter, body = build_memory_frontmatter(candidate, now=now, confirm_public=confirm_public)
     text = render_memory_text(frontmatter, body)
     document = MemoryDocument(
         path=memory_path_for_frontmatter(repo_root, frontmatter),
@@ -539,8 +540,11 @@ def build_memory_frontmatter(
     candidate: dict[str, Any],
     *,
     now: datetime | None = None,
+    confirm_public: bool = False,
 ) -> tuple[dict[str, Any], str]:
     validate_candidate_shape(candidate)
+    if not isinstance(confirm_public, bool):
+        raise MemoryAddError("trusted confirm_public argument must be boolean")
     timestamp = format_timestamp(now or datetime.now(UTC))
     memory_type = candidate["type"]
     status = candidate.get("status", "active")
@@ -560,7 +564,7 @@ def build_memory_frontmatter(
         "source": candidate["source"],
         "evidence": candidate["evidence"],
     }
-    if candidate.get("confirm_public") is True:
+    if confirm_public:
         frontmatter["confirm_public"] = True
     if "supersedes" in candidate:
         frontmatter["supersedes"] = candidate["supersedes"]
@@ -585,8 +589,57 @@ def storage_frontmatter(frontmatter: dict[str, Any], body: str) -> dict[str, Any
     return parsed
 
 
-def validate_candidate_shape(candidate: dict[str, Any]) -> None:
+def parse_memory_json(raw: str) -> Any:
+    def object_without_duplicates(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate JSON object key")
+            result[key] = value
+        return result
+
+    def finite_float(value: str) -> float:
+        parsed = float(value)
+        if not math.isfinite(parsed):
+            raise ValueError("non-finite JSON number")
+        return parsed
+
+    def reject_constant(_value: str) -> Any:
+        raise ValueError("non-finite JSON number")
+
+    try:
+        return json.loads(
+            raw,
+            object_pairs_hook=object_without_duplicates,
+            parse_float=finite_float,
+            parse_constant=reject_constant,
+        )
+    except (ValueError, RecursionError) as exc:
+        raise MemoryAddError("invalid JSON input", code="invalid_json") from exc
+
+
+def forbidden_approval_issues(value: Any, path: str = "") -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            child_path = f"{path}.{key}" if path else str(key)
+            if key == "confirm_public":
+                issues.append(ValidationIssue(
+                    code="untrusted_approval",
+                    message="candidate JSON cannot supply approval; use the trusted caller argument after human review",
+                    field=child_path,
+                ))
+            issues.extend(forbidden_approval_issues(child, child_path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            issues.extend(forbidden_approval_issues(child, f"{path}[{index}]"))
+    return issues
+
+
+def validate_candidate_shape(candidate: dict[str, Any]) -> None:
+    if not isinstance(candidate, dict):
+        raise MemoryAddError("memory candidate must be a mapping")
+    issues = forbidden_approval_issues(candidate)
     unknown_fields = sorted(set(candidate) - ADD_ALLOWED_FIELDS)
     for field_name in unknown_fields:
         issues.append(
@@ -644,8 +697,6 @@ def validate_candidate_shape(candidate: dict[str, Any]) -> None:
                 field="evidence",
             )
         )
-    if "confirm_public" in candidate and not isinstance(candidate["confirm_public"], bool):
-        issues.append(invalid_candidate_type("confirm_public", "boolean"))
     for field_name in ("supersedes", "related"):
         if field_name in candidate and not valid_ulid_candidate_list(candidate[field_name]):
             issues.append(
@@ -833,7 +884,7 @@ def validate_candidate_fields(candidate: dict[str, Any], issues: list[Validation
     allowed_fields: set[str]
     if memory_type == "command":
         allowed_fields = COMMAND_FIELDS
-    elif memory_type in {"routine", "skill"}:
+    elif memory_type in ("routine", "skill"):
         allowed_fields = ROUTINE_SKILL_FIELDS
     else:
         allowed_fields = set()
@@ -849,7 +900,7 @@ def validate_candidate_fields(candidate: dict[str, Any], issues: list[Validation
         for field_name, value in fields.items():
             if not isinstance(value, str):
                 issues.append(invalid_candidate_type(f"fields.{field_name}", "string"))
-    elif memory_type in {"routine", "skill"}:
+    elif memory_type in ("routine", "skill"):
         for field_name in ("steps", "prerequisites"):
             if field_name in fields and not is_string_list(fields[field_name]):
                 issues.append(invalid_candidate_type(f"fields.{field_name}", "list of strings"))
@@ -1189,7 +1240,6 @@ def iter_frontmatter_safety_strings(value: Any, key: str | None = None) -> Itera
         "id",
         "type",
         "status",
-        "tags",
         "created_at",
         "updated_at",
         "content_hash",
