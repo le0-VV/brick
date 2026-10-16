@@ -117,6 +117,8 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn('phrase "remember that" is only a signal', instructions)
         self.assertIn("A direct user statement is valid evidence", instructions)
         self.assertIn("Do not emit `fields`", instructions)
+        self.assertIn("only the corrected current fact", instructions)
+        self.assertIn("Omit superseded values and correction history", " ".join(instructions.split()))
         self.assertIn("If `action` is `clarify`, ask", instructions)
         self.assertIn("./brick memory add", instructions)
 

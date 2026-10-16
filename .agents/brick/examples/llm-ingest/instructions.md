@@ -26,8 +26,10 @@ Return one ingest decision:
 
 Do not add memories for one-off commands, temporary test facts, generic
 assistant explanations, guesses, or statements that only describe the current
-turn. If the user corrects an earlier fact, keep only the latest durable
-version. If the user says not to remember something, reject that item. The
+turn. If the user corrects an earlier fact, the candidate title and body must
+contain only the corrected current fact. Omit superseded values and correction
+history from the title and body; verbatim evidence may retain the original
+quote. If the user says not to remember something, reject that item. The
 phrase "remember that" is only a signal to consider memory; do not preserve that
 phrase in the memory body and do not reject durable content merely because the
 user used those words.

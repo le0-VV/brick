@@ -349,6 +349,34 @@ class StrictIngestTests(unittest.TestCase):
                             self.assertEqual(completed.returncode, 1)
         self.assertEqual(self.snapshot(), before)
 
+    def test_credential_keys_preserve_assignment_context_for_secret_scan(self) -> None:
+        before = self.snapshot()
+        for key, value in (("api_key", "sk_test_1234567890abcdef"), ("access_token", "sample_token_1234567890abcdef"), ("password", 1234567890123456)):
+            for location in ("source", "evidence"):
+                candidate = decision()["candidate"]
+                target = candidate["source"] if location == "source" else candidate["evidence"][0]
+                target[key] = value
+                with self.subTest(key=key, location=location):
+                    for approved in (False, True):
+                        with self.assertRaises(MemoryAddError) as raised:
+                            create_memory_from_candidate(self.repo, candidate, confirm_public=approved)
+                        self.assertIn("secret_detected", {issue.code for issue in raised.exception.issues})
+                        args = ("memory", "add", "--confirm-public") if approved else ("memory", "add")
+                        completed = run_brick(self.repo, *args, payload=candidate)
+                        self.assertEqual(completed.returncode, 1)
+                        payload = json.loads(completed.stdout)
+                        self.assertEqual(payload["status"], "blocked")
+                        self.assertNotIn("confirm_public", payload["actions"])
+                        self.assertNotIn(str(value), completed.stdout)
+        self.assertEqual(self.snapshot(), before)
+
+    def test_secret_assignment_scan_does_not_send_root_timestamps_to_pii_scan(self) -> None:
+        candidate = decision()["candidate"]
+        candidate["created_at"] = "2026-10-16T00:00:00Z"
+        candidate["updated_at"] = "2026-10-16T00:00:00Z"
+        added = create_memory_from_candidate(self.repo, candidate)
+        self.assertEqual(added.validation.status, "ok")
+
     def test_existing_markdown_mapping_keys_receive_safety_scanning(self) -> None:
         for key, expected in (("maintainer@example.org", "possible_pii"), ("api_key = sk_test_1234567890abcdef", "secret_detected")):
             frontmatter, body = build_memory_frontmatter(decision()["candidate"])

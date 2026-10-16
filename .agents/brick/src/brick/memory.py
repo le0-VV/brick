@@ -1231,8 +1231,10 @@ def validate_ulid_list(
 
 def scan_safety(result: ValidationResult, document: MemoryDocument) -> None:
     scan_text = "\n".join(iter_safety_strings(document))
+    # Preserve credential assignments without sending timestamps to the PII scan.
+    secret_text = scan_text + "\n" + render_memory_text(document.frontmatter, "")
     for kind, pattern in SECRET_PATTERNS:
-        for match in pattern.finditer(scan_text):
+        for match in pattern.finditer(secret_text):
             result.issues.append(
                 ValidationIssue(
                     code="secret_detected",
