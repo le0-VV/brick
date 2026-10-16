@@ -1231,10 +1231,8 @@ def validate_ulid_list(
 
 def scan_safety(result: ValidationResult, document: MemoryDocument) -> None:
     scan_text = "\n".join(iter_safety_strings(document))
-    # Preserve credential assignments without sending timestamps to the PII scan.
-    secret_text = scan_text + "\n" + render_memory_text(document.frontmatter, "")
     for kind, pattern in SECRET_PATTERNS:
-        for match in pattern.finditer(secret_text):
+        for match in pattern.finditer(scan_text):
             result.issues.append(
                 ValidationIssue(
                     code="secret_detected",
@@ -1286,6 +1284,8 @@ def iter_frontmatter_safety_strings(value: Any) -> Iterable[str]:
                 if is_root and key in skipped_root_keys:
                     continue
                 yield str(key)
+                if not isinstance(child, (dict, list)):
+                    yield f"{key}: {child}"
                 pending.append((child, False))
 
 

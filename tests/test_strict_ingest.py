@@ -370,6 +370,34 @@ class StrictIngestTests(unittest.TestCase):
                         self.assertNotIn(str(value), completed.stdout)
         self.assertEqual(self.snapshot(), before)
 
+    def test_labelled_nested_names_need_independent_trusted_approval(self) -> None:
+        for key in ("maintainer", "author", "name"):
+            for location in ("source", "evidence", "nested_source", "nested_evidence"):
+                candidate = decision()["candidate"]
+                target = candidate["source"] if location.endswith("source") else candidate["evidence"][0]
+                if location.startswith("nested"):
+                    target["details"] = [{}]
+                    target = target["details"][0]
+                target[key] = "John Smith"
+                before = self.snapshot()
+                with self.subTest(key=key, location=location):
+                    with self.assertRaises(MemoryAddError) as raised:
+                        create_memory_from_candidate(self.repo, candidate)
+                    self.assertIn("possible_pii", {issue.code for issue in raised.exception.issues})
+                    completed = run_brick(self.repo, "memory", "add", payload=candidate)
+                    self.assertEqual(completed.returncode, 1)
+                    payload = json.loads(completed.stdout)
+                    self.assertEqual(payload["status"], "blocked")
+                    self.assertNotIn("John Smith", completed.stdout)
+                    self.assertEqual(self.snapshot(), before)
+                    added = create_memory_from_candidate(self.repo, candidate, confirm_public=True)
+                    self.assertEqual(added.validation.status, "ok")
+                    self.assertIs(load_memory(added.path).frontmatter["confirm_public"], True)
+                    completed = run_brick(self.repo, "memory", "add", "--confirm-public", payload=candidate)
+                    self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+                    payload = json.loads(completed.stdout)
+                    self.assertIs(load_memory(self.repo / payload["path"]).frontmatter["confirm_public"], True)
+
     def test_secret_assignment_scan_does_not_send_root_timestamps_to_pii_scan(self) -> None:
         candidate = decision()["candidate"]
         candidate["created_at"] = "2026-10-16T00:00:00Z"
