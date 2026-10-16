@@ -119,6 +119,9 @@ class Phase6DocsExamplesTests(unittest.TestCase):
         self.assertIn("Do not emit `fields`", instructions)
         self.assertIn("only the corrected current fact", instructions)
         self.assertIn("Omit superseded values and correction history", " ".join(instructions.split()))
+        self.assertIn("English correction example:", instructions)
+        self.assertIn("Chinese correction example:", instructions)
+        self.assertIn("only evidence retains the superseded value", instructions)
         self.assertIn("If `action` is `clarify`, ask", instructions)
         self.assertIn("./brick memory add", instructions)
 

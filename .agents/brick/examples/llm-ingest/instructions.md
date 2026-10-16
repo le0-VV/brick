@@ -50,6 +50,28 @@ copy the whole transcript, include "remember that", or preserve temporary
 phrasing unless the phrasing itself is the durable fact. Quote source text only
 inside `evidence`.
 
+For corrections, separate the current fact from its audit evidence. These are
+illustrations of the output rule, not facts to copy into other memories:
+
+English correction example:
+
+- Source: `Correction: release artefacts are retained for 21 days, not 60 days.`
+- Title: `Release artefact retention`
+- Body: `Retain release artefacts for 21 days.`
+- Evidence: `{"kind": "quote", "text": "Correction: release artefacts are retained for 21 days, not 60 days."}`
+
+Chinese correction example:
+
+- Source: `更正：后台任务最多重试两次，不是五次。只保留当前规则。`
+- Title: `后台任务重试上限`
+- Body: `后台任务最多重试两次。`
+- Evidence: `{"kind": "quote", "text": "更正：后台任务最多重试两次，不是五次。只保留当前规则。"}`
+
+In each example, only evidence retains the superseded value. Do not append
+"previously", "changed from", "superseded", "原来", "此前", or historical
+parentheses to the candidate title or body. The reviewing agent must still
+verify that the candidate states only the current supported fact.
+
 Choose the narrowest useful type:
 
 - `decision`: settled project direction, architecture constraints, policy, or
