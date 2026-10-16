@@ -726,5 +726,5 @@ Exit criteria:
 
 - [x] Keep public approval outside all candidate JSON and preserve explicitly approved manual writes.
 - [x] Validate model decisions and exact source quotes through a read-only review command.
-- [x] Reject malformed, injected and unsafe output before it can reach memory storage.
-- [ ] Verify the boundary with regression tests and a broader live Bonsai evaluation.
+- [x] Reject malformed output, approval injection and detected unsafe content before writes.
+- [x] Verify the boundary with regression tests and a broader live Bonsai evaluation.
