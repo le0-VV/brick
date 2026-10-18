@@ -424,6 +424,120 @@ class Phase1SetupTests(unittest.TestCase):
         self.assertTrue((repo / "brick").is_symlink())
         self.assertEqual((repo / "AGENTS.md").read_text(encoding="utf-8"), root_agents_text())
 
+    def run_piped_install(
+        self, repo: Path, *args: str, source_base_url: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        tools_dir = repo / "installer-tools"
+        tools_dir.mkdir()
+        curl = tools_dir / "curl"
+        base_url = source_base_url or cli.DEFAULT_BRICK_SOURCE_BASE_URL
+        curl.write_text(
+            f"""#!{sys.executable}
+from pathlib import Path
+import sys
+
+assert len(sys.argv) == 5 and sys.argv[1] == "-fsSL" and sys.argv[3] == "-o", sys.argv
+prefix = {base_url!r} + "/"
+assert sys.argv[2].startswith(prefix), sys.argv[2]
+relative_path = sys.argv[2][len(prefix):]
+Path(sys.argv[4]).write_bytes((Path({str(ROOT)!r}) / relative_path).read_bytes())
+with Path({str(repo / 'curl-requests.txt')!r}).open("a", encoding="utf-8") as requests:
+    requests.write(sys.argv[2] + "\\n")
+""",
+            encoding="utf-8",
+        )
+        curl.chmod(0o755)
+        env = os.environ.copy()
+        env["PATH"] = str(tools_dir) + os.pathsep + env["PATH"]
+        env.pop("BRICK_SOURCE_BASE_URL", None)
+        if source_base_url is not None:
+            env["BRICK_SOURCE_BASE_URL"] = source_base_url + "/"
+        return subprocess.run(
+            ["sh", "-s", "--", "--skip-venv", "--json", *args],
+            input=(ROOT / "install.sh").read_text(encoding="utf-8"),
+            cwd=repo,
+            env=env,
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    def assert_piped_install_package(self, repo: Path, base_url: str) -> None:
+        for relative_path in cli.UPSTREAM_PACKAGE_FILES:
+            with self.subTest(path=relative_path):
+                if relative_path == cli.BRICK_SOURCE_RELATIVE_PATH:
+                    self.assertEqual(
+                        json.loads((repo / relative_path).read_text()), {"base_url": base_url}
+                    )
+                else:
+                    self.assertEqual(
+                        (repo / relative_path).read_bytes(), (ROOT / relative_path).read_bytes()
+                    )
+        self.assertEqual(
+            (repo / "curl-requests.txt").read_text().splitlines(),
+            [f"{base_url}/{path.as_posix()}" for path in cli.UPSTREAM_PACKAGE_FILES],
+        )
+        update_state = json.loads((repo / cli.BRICK_UPDATE_STATE_RELATIVE_PATH).read_text())
+        self.assertEqual(update_state["base_url"], base_url)
+        self.assertEqual(update_state["status"], "ok")
+        self.assertEqual(cli.read_upstream_source_base_url(repo), base_url)
+        self.assertFalse(cli.upstream_update_due(repo, base_url))
+        self.assertTrue((repo / "brick").is_symlink())
+        for path in cli.UPSTREAM_EXECUTABLE_FILES:
+            self.assertTrue(os.access(repo / path, os.X_OK))
+
+    def test_install_script_bootstraps_repo_from_stdin_with_default_source(self) -> None:
+        repo = self.make_empty_repo()
+
+        completed = self.run_piped_install(repo)
+
+        self.assertEqual(json.loads(completed.stdout)["status"], "ok")
+        self.assert_piped_install_package(repo, cli.DEFAULT_BRICK_SOURCE_BASE_URL)
+        self.assertEqual((repo / "AGENTS.md").read_text(encoding="utf-8"), root_agents_text())
+        self.assertTrue((repo / ".agents/brick/config.local.json").is_file())
+
+    def test_install_script_upgrades_stale_target_from_stdin(self) -> None:
+        repo = self.make_empty_repo()
+        executable = repo / ".agents/brick/bin/brick"
+        executable.parent.mkdir(parents=True)
+        executable.write_text("#!/bin/sh\nprintf '{\"status\":\"ok\"}\\n'\n", encoding="utf-8")
+        executable.chmod(0o755)
+        (repo / ".agents/brick/setup.py").write_text("# Old setup helper.\n", encoding="utf-8")
+        (repo / cli.BRICK_SOURCE_RELATIVE_PATH).write_text(
+            json.dumps({"base_url": "https://old.example/brick"}), encoding="utf-8"
+        )
+        preserved = {
+            Path("AGENTS.md"): b"Existing project instructions.\n",
+            Path(".agents/memory/decision/keep.md"): (
+                ROOT / ".agents/brick/examples/memory-files/decision.md"
+            ).read_bytes(),
+            Path(".agents/brick/config.local.json"): b'{"embedding":{"model":"local-model"}}\n',
+            Path(".agents/brick/index/brick.sqlite3"): b"existing local index\0",
+        }
+        for relative_path, content in preserved.items():
+            path = repo / relative_path
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+
+        completed = self.run_piped_install(repo, "--no-agent-instructions")
+
+        self.assertEqual(json.loads(completed.stdout)["status"], "ok")
+        self.assertEqual(executable.read_bytes(), (ROOT / ".agents/brick/bin/brick").read_bytes())
+        self.assert_piped_install_package(repo, cli.DEFAULT_BRICK_SOURCE_BASE_URL)
+        for relative_path, content in preserved.items():
+            with self.subTest(preserved=relative_path):
+                self.assertEqual((repo / relative_path).read_bytes(), content)
+
+    def test_install_script_uses_explicit_source_url_from_stdin(self) -> None:
+        repo = self.make_empty_repo()
+        base_url = "https://brick.example/release"
+
+        completed = self.run_piped_install(repo, source_base_url=base_url)
+
+        self.assertEqual(json.loads(completed.stdout)["status"], "ok")
+        self.assert_piped_install_package(repo, base_url)
+
     def test_memory_add_without_json_returns_invalid_json(self) -> None:
         completed = subprocess.run(
             [sys.executable, str(ROOT / ".agents/brick/bin/brick"), "memory", "add"],

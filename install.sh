@@ -12,6 +12,11 @@ if [ -z "$repo_root" ]; then
   exit 1
 fi
 
+script_dir=""
+if [ -f "$0" ]; then
+  script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || true)"
+fi
+
 cd "$repo_root"
 
 default_source_base_url="https://github.com/le0-VV/brick/raw/refs/heads/main"
@@ -51,7 +56,7 @@ copy_from_checkout() {
 }
 
 fetch_from_base_url() {
-  base_url="${BRICK_SOURCE_BASE_URL%/}"
+  base_url="${1%/}"
   installed_source_base_url="$base_url"
   mkdir -p .agents/brick/bin .agents/brick/examples/llm-ingest .agents/brick/examples/memory-add .agents/brick/examples/memory-files .agents/brick/src/brick .agents/brick/templates
   curl -fsSL "$base_url/.agents/brick/package-files.json" -o .agents/brick/package-files.json
@@ -102,14 +107,10 @@ write_source_config() {
 EOF
 }
 
-script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd || true)"
 if [ -n "$script_dir" ] && [ -f "$script_dir/.agents/brick/bin/brick" ]; then
   copy_from_checkout "$script_dir"
-elif [ -n "${BRICK_SOURCE_BASE_URL:-}" ]; then
-  fetch_from_base_url
 else
-  echo "Set BRICK_SOURCE_BASE_URL to the raw URL base for this Brick release." >&2
-  exit 2
+  fetch_from_base_url "${BRICK_SOURCE_BASE_URL:-$default_source_base_url}"
 fi
 
 write_source_config "$installed_source_base_url"
