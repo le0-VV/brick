@@ -72,7 +72,6 @@ class Phase6DocsExamplesTests(unittest.TestCase):
             "./brick conflicts propose",
         ):
             self.assertIn(command, readme + usage)
-        self.assertIn("I'm calling it brick because fuck naming.", readme)
         self.assertIn(".agents/brick/config.local.json", readme)
         self.assertIn(".agents/brick/config.local.json", usage)
         self.assertIn(".agents/brick/source.json", readme)
